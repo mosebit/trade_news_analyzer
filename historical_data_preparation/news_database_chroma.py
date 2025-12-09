@@ -303,23 +303,21 @@ class NewsDatabase:
         self.close()
 
 
-# Пример использования
 if __name__ == "__main__":
     db = NewsDatabase("./chromadb_v1")
     
-    # Статистика
     stats = db.get_stats()
     print("\nСтатистика:")
     print(json.dumps(stats, ensure_ascii=False, indent=2))
     
-    # Получение новостей по тикеру
     if stats['total_news'] > 0:
-        print(db.find_similar_news_by_text(query_text="Заявление Дональда Трампа о полном отказе Индии от российской нефти оказалось полной неожиданностью для индийских НПЗ, включая Indian Oil Corp и Reliance Industries Ltd, которые рассчитывали лишь на незначительное сокращение объемов. В то же время, Mangalore Refinery and Petrochemicals Ltd не намерена менять свои планы поставок. Несмотря на политическое давление, Bloomberg прогнозирует рост поставок нефти из РФ в Индию в октябре на шесть процентов по сравнению с предыдущим месяцем."))
+        # print(db.find_similar_news_by_text(query_text="Заявление Дональда Трампа о полном отказе Индии от российской нефти оказалось полной неожиданностью для индийских НПЗ, включая Indian Oil Corp и Reliance Industries Ltd, которые рассчитывали лишь на незначительное сокращение объемов. В то же время, Mangalore Refinery and Petrochemicals Ltd не намерена менять свои планы поставок. Несмотря на политическое давление, Bloomberg прогнозирует рост поставок нефти из РФ в Индию в октябре на шесть процентов по сравнению с предыдущим месяцем."))
 
-
-        # print("\n--- Все новости по SBER ---")
-        # sber_all = db.get_news_by_ticker('SBER', limit=5)
-        # print(f"Найдено: {len(sber_all)}")
+        print("\n--- Пример новостей по SBER ---")
+        sber_all = db.get_news_by_ticker('SBER', limit=10)
+        print(f"Найдено: {len(sber_all)}")
+        for i, sber_event in enumerate(sber_all):
+            print(f"{i}.\t{sber_event.get('clean_description')}")
         
         # print("\n--- Важные новости по SBER (high impact) ---")
         # sber_high = db.get_news_by_ticker('SBER', limit=5, min_impact='high')
