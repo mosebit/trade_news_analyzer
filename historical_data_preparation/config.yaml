@@ -74,6 +74,22 @@ smartlab:
     sec-ch-ua-platform: '"Windows"'
     user-agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36"
 
+# E-Disclosure Parser Configuration
+edisclosure:
+  base_url: "https://www.e-disclosure.ru"
+  headless: true  # Run browser in headless mode
+  request_delay_seconds: 2.0  # Longer delay for browser-based scraping
+  max_retries: 2
+  retry_delay_seconds: 5
+  timeout_seconds: 60
+
+  # Ticker to company ID mapping
+  company_ids:
+    POSI: [38196, 38538]
+    SBER: [3043]
+    ROSN: [6505]
+    YDEX: [39059]
+
 # Logging Configuration
 logging:
   level: "INFO"  # DEBUG, INFO, WARNING, ERROR, CRITICAL
