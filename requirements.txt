@@ -1,0 +1,32 @@
+# Core dependencies
+requests>=2.31.0
+lxml>=4.9.0
+python-dotenv>=1.0.0
+
+# Database and vector search
+chromadb>=0.4.0
+sentence-transformers>=2.2.0
+pysqlite3-binary>=0.5.0  # For systems with old SQLite
+
+# BM25 for hybrid search
+rank-bm25>=0.2.2
+
+# Cross-encoder for reranking
+# Note: included in sentence-transformers
+
+# LLM and structured output
+openai>=1.0.0
+pydantic>=2.0.0
+
+# Data processing
+pandas>=2.0.0
+numpy>=1.24.0
+
+# Logging
+loguru>=0.7.0
+
+# Configuration
+PyYAML>=6.0
+
+# Progress bars (optional, for migration scripts)
+tqdm>=4.65.0

@@ -2,3 +2,4 @@
 /myenv
 /archive
 /historical_data_preparation/.env
+/__pycache__/

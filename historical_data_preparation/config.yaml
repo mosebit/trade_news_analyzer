@@ -1,0 +1,82 @@
+# Trade News Analyzer Configuration
+
+# Database Configuration
+database:
+  path: "./chroma_db_new"
+  collection_name: "news_cosine"
+  embedding_model: "intfloat/multilingual-e5-small"
+  similarity_metric: "cosine"
+
+# Similarity Search Configuration
+similarity_search:
+  # Vector search settings
+  vector_top_k: 20  # Retrieve more candidates for reranking
+
+  # BM25 settings (keyword search)
+  bm25_enabled: true
+  bm25_top_k: 20
+  bm25_weight: 0.3  # Weight for BM25 scores (0-1), vector weight = 1 - bm25_weight
+
+  # Reranking settings
+  reranking_enabled: true
+  reranking_model: "cross-encoder/ms-marco-MiniLM-L-6-v2"
+  reranking_top_k: 5  # Final number of results after reranking
+
+  # Duplicate detection threshold
+  duplicate_threshold: 0.75  # Similarity score above which we check with LLM
+
+# LLM Configuration
+llm:
+  model: "${LLM_MODEL}"  # Will be loaded from .env
+  api_key: "${LLM_API_KEY}"  # Will be loaded from .env
+  base_url: "${BASE_URL}"  # Will be loaded from .env
+  temperature_enrichment: 0.3
+  temperature_duplicate_check: 0.1
+  max_retries: 3
+  retry_delay_seconds: 2
+
+# Tickers Configuration
+tickers:
+  - ticker: "SBER"
+    description: "Сбербанк  (тикер SBER на Московской бирже) — крупнейший универсальный банк России и Восточной Европы, работающий в финансовом секторе (банковские услуги, финтех, экосистемные цифровые сервисы) с прибылью по МСФО около 1,58 трлн руб. за 2024 год и рентабельностью капитала около 24–25%. Для инвестора это высокомаржинальный лидер рынка с масштабным дивидендным потенциалом и ликвидностью «голубой фишки», чувствительный к ставке ЦБ, состоянию российской экономики и регуляторным/геополитическим рискам."
+
+  - ticker: "POSI"
+    description: "Positive Technologies (тикер POSI на Московской бирже MOEX) — российский разработчик решений в сфере кибербезопасности для корпоративных и государственных клиентов, работающий в секторе программного обеспечения и ИБ‑сервисов, с выручкой порядка 24–25 млрд руб. в 2024 году и включением акций в первый котировальный список и ключевые ИТ‑индексы Мосбиржи. Для инвестора это история роста в нише кибербезопасности с высокой долей выручки от лицензий, заметной волатильностью прибыли (сокращение чистой прибыли по МСФО в 2024 году примерно до 3,7 млрд руб.) и активной работой с розничными акционерами, в том числе через SPO и программы обратного выкупа."
+
+  - ticker: "ROSN"
+    description: "Роснефть  (тикер ROSN на Московской бирже) — крупнейшая российская публичная нефтегазовая компания с вертикально интегрированным бизнесом по добыче нефти и газа, переработке и розничным продажам нефтепродуктов и существенной долей в экспорте углеводородов. Для инвестора это системообразующий эмитент сырьевого сектора с триллионной выручкой в год, высокой капиталоемкостью, чувствительностью к ценам на нефть, курсу рубля, ставке ЦБ и санкционным/регуляторным рискам, но традиционно значимым дивидендным потоком и ролью в индексах российского рынка."
+
+  - ticker: "YDEX"
+    description: "Яндекс (тикер YDEX на Московской бирже) — крупнейшая российская ИТ‑компания, работающая в секторе интернет‑сервисов и цифровых экосистем (поиск и реклама, такси, e‑commerce, медиа и облака) с быстро растущей выручкой и высокой маржинальностью по EBITDA на фоне умеренной долговой нагрузки. Для инвестора это классическая история роста с регулярными полугодовыми дивидендами (ориентир на существенную долю от прибыли) и чувствительностью к динамике российского потребительского спроса, регуляторной политике в сфере ИТ и конкуренции на рынке онлайн‑рекламы и сервисов"
+
+# SmartLab Parser Configuration
+smartlab:
+  base_url: "https://smart-lab.ru"
+  request_delay_seconds: 1.0  # Delay between requests to avoid rate limiting
+  max_retries: 3
+  retry_delay_seconds: 5
+  timeout_seconds: 30
+
+  # User agent and headers
+  headers:
+    accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7"
+    accept-language: "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7"
+    sec-ch-ua: '"Chromium";v="142", "Google Chrome";v="142", "Not_A Brand";v="99"'
+    sec-ch-ua-mobile: "?0"
+    sec-ch-ua-platform: '"Windows"'
+    user-agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36"
+
+# Logging Configuration
+logging:
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR, CRITICAL
+  format: "<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan> - <level>{message}</level>"
+  log_to_file: true
+  log_file_path: "./logs/parser.log"
+  rotation: "100 MB"
+  retention: "30 days"
+
+# Pipeline Configuration
+pipeline:
+  target_date: "2023-01-01T00:00:00"  # Collect news until this date
+  save_stats_interval: 10  # Print statistics every N pages
+  continue_on_error: true  # Continue processing other tickers if one fails
