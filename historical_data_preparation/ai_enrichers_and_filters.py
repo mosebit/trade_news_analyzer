@@ -7,7 +7,6 @@ from dotenv import load_dotenv
 
 load_dotenv(os.path.join(os.path.dirname(__file__), '.env'))
 
-base_url = "https://api-llm.ml.ptsecurity.ru/v1"
 model = os.environ.get("LLM_MODEL")
 
 client = OpenAI(
