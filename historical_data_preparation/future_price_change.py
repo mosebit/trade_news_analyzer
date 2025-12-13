@@ -9,7 +9,7 @@ def load_moex_candles(
     ticker: str,
     start_date: str,
     end_date: str,
-    interval: int
+    interval: int = 10,
 ) -> pd.DataFrame:
     all_parts = []
     start = 0
@@ -19,7 +19,7 @@ def load_moex_candles(
             "from": start_date,
             "till": end_date,
             "interval": interval,
-            "start": start,
+            "start": start,   # пагинация
         }
         url = MOEX_CANDLES_URL.format(ticker=ticker)
         r = requests.get(url, params=params)
@@ -41,12 +41,14 @@ def load_moex_candles(
         return pd.DataFrame()
 
     df = pd.concat(all_parts, ignore_index=True)
+
     df["datetime"] = pd.to_datetime(df["end"])
     df = df.sort_values("datetime").reset_index(drop=True)
+
     return df
 
 
-def get_future_prices(
+def get_future_price_changes(
     news_time: Union[str, pd.Timestamp],
     tickers: List[str],
     shifts_hours: List[int] = [1, 3, 12, 24],
@@ -59,7 +61,7 @@ def get_future_prices(
     shifts = {f"{h}h": pd.Timedelta(hours=h) for h in shifts_hours}
     max_shift = max(shifts_hours)
 
-    start_date = news_time.date().strftime("%Y-%m-%d")
+    start_date = (news_time - pd.Timedelta(days=5)).date().strftime("%Y-%m-%d")
     end_date = (news_time + pd.Timedelta(hours=max_shift) + pd.Timedelta(days=1)).date().strftime("%Y-%m-%d")
 
     result: Dict[str, Dict[str, Union[float, None]]] = {}
@@ -72,29 +74,35 @@ def get_future_prices(
             interval=interval_minutes,
         )
 
+        ticker_res: Dict[str, Union[float, None]] = {
+            shift_label: None for shift_label in shifts.keys()
+        }
+
         if df.empty or price_field not in df.columns:
-            result[ticker] = {shift_label: None for shift_label in shifts.keys()}
+            result[ticker] = ticker_res
             continue
 
         df = df.sort_values("datetime").reset_index(drop=True)
 
-        ticker_res: Dict[str, Union[float, None]] = {}
+        df_before = df[df["datetime"] <= news_time]
+        if df_before.empty:
+            result[ticker] = ticker_res
+            continue
+
+        base_price = float(df_before.iloc[-1][price_field])
 
         for shift_label, delta in shifts.items():
             target_time = news_time + delta
             row = df[df["datetime"] >= target_time].head(1)
 
             if row.empty:
-                price = None
+                change = None
             else:
-                price = float(row.iloc[0][price_field])
+                future_price = float(row.iloc[0][price_field])
+                change = future_price - base_price
 
-            ticker_res[shift_label] = price
+            ticker_res[shift_label] = change
 
         result[ticker] = ticker_res
 
     return result
-
-# example
-prices = get_future_prices("2025-12-03 12:00:00", ["SBER", "YDEX", "POSI", "ROSN"])
-print(prices)
