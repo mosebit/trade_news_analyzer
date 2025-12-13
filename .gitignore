@@ -1,5 +1,7 @@
 /doc
 /myenv
 /archive
-/historical_data_preparation/.env
-/__pycache__/
+__pycache__/
+logs/
+*.py[cod]
+.env

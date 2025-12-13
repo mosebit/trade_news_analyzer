@@ -27,9 +27,17 @@ similarity_search:
 
 # LLM Configuration
 llm:
+  # Client type: use custom corporate client or standard OpenAI client
+  use_custom_client: "${USE_CUSTOM_CLIENT}"  # "true" or "false", default: "false"
+
+  # Model configuration
   model: "${LLM_MODEL}"  # Will be loaded from .env
-  api_key: "${LLM_API_KEY}"  # Will be loaded from .env
-  base_url: "${BASE_URL}"  # Will be loaded from .env
+
+  # Standard OpenAI client settings (used when use_custom_client=false)
+  api_key: "${LLM_API_KEY}"  # OpenAI API key
+  base_url: "${BASE_URL}"  # OpenAI base URL
+
+  # Generation parameters
   temperature_enrichment: 0.3
   temperature_duplicate_check: 0.1
   max_retries: 3

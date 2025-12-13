@@ -33,6 +33,7 @@ class SimilaritySearchConfig:
 
 @dataclass
 class LLMConfig:
+    use_custom_client: bool
     model: str
     api_key: str
     base_url: str
@@ -108,7 +109,13 @@ class Config:
             for key, value in config.items():
                 if isinstance(value, str) and value.startswith("${") and value.endswith("}"):
                     env_var = value[2:-1]
-                    config[key] = os.getenv(env_var, value)
+                    env_value = os.getenv(env_var, "")
+
+                    # Special handling for boolean values
+                    if key == "use_custom_client":
+                        config[key] = env_value.lower() in ("true", "1", "yes")
+                    else:
+                        config[key] = env_value
                 elif isinstance(value, (dict, list)):
                     self._replace_env_vars(value)
         elif isinstance(config, list):

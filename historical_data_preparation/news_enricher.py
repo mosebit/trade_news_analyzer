@@ -3,7 +3,6 @@ News enrichment using LLM (extracted from ai_enrichers_and_filters.py).
 Handles news analysis, duplicate detection, and data enrichment.
 """
 
-from openai import OpenAI
 from pydantic import BaseModel, Field
 from typing import List, Literal, Dict, Optional
 import json
@@ -11,6 +10,7 @@ import time
 from loguru import logger
 
 from config import get_config
+from llm_client import create_llm_client, BaseLLMClient
 
 
 class EnrichedEventData(BaseModel):
@@ -51,17 +51,21 @@ class NewsEnricher:
         """Initialize enricher with configuration."""
         self.config = get_config(config_path)
 
-        # Initialize OpenAI client
-        self.client = OpenAI(
+        # Initialize LLM client (custom or OpenAI)
+        self.client = create_llm_client(
+            use_custom=self.config.llm.use_custom_client,
             api_key=self.config.llm.api_key,
-            base_url=self.config.llm.base_url
+            base_url=self.config.llm.base_url,
+            model=self.config.llm.model,
         )
 
         # Get tickers info
         self.tickers_dict = self.config.get_tickers_dict()
         self.ticker_list = self.config.get_ticker_list()
 
-        logger.info(f"NewsEnricher initialized with model: {self.config.llm.model}")
+        client_type = "Custom Corporate" if self.config.llm.use_custom_client else "OpenAI"
+        logger.info(f"NewsEnricher initialized ({client_type} client)")
+        logger.info(f"  Model: {self.client.get_model_name()}")
         logger.info(f"  Tracking tickers: {self.ticker_list}")
 
     def _call_llm_with_retry(
@@ -83,23 +87,25 @@ class NewsEnricher:
         """
         for attempt in range(self.config.llm.max_retries):
             try:
-                response = self.client.chat.completions.create(
-                    model=self.config.llm.model,
+                # Call LLM using abstracted client
+                response_content = self.client.chat_completion(
                     messages=messages,
-                    response_format={"type": "json_object"},
-                    temperature=temperature
+                    temperature=temperature,
+                    response_format="json_object"
                 )
 
+                if response_content is None:
+                    raise Exception("LLM returned None response")
+
                 # Parse response
-                result = response_model.model_validate_json(
-                    response.choices[0].message.content
-                )
+                result = response_model.model_validate_json(response_content)
 
                 return result
 
             except json.JSONDecodeError as e:
                 logger.error(f"JSON decode error (attempt {attempt + 1}): {e}")
-                logger.debug(f"Response: {response.choices[0].message.content}")
+                if response_content:
+                    logger.debug(f"Response: {response_content[:200]}")
 
             except Exception as e:
                 logger.error(f"LLM error (attempt {attempt + 1}): {e}")
