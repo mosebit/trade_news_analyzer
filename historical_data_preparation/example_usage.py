@@ -211,6 +211,72 @@ def example_7_check_duplicates():
         print(f"\n✗ No duplicate found")
 
 
+def example_8_test_edisclosure_parser():
+    """Example 8: Test E-Disclosure parser."""
+    print("\n" + "="*60)
+    print("EXAMPLE 8: E-Disclosure Parser")
+    print("="*60)
+
+    try:
+        from edisclosure_parser import EDisclosureParser
+    except ImportError as e:
+        print(f"\n✗ Cannot import E-Disclosure parser")
+        print(f"  Error: {e}")
+        print(f"\n  Install with:")
+        print(f"    pip install playwright beautifulsoup4")
+        print(f"    playwright install chromium")
+        return
+
+    print("\n⚠️  Note: This will take 15-30 seconds due to browser startup")
+    print("    and anti-bot protection bypass.\n")
+
+    # Initialize parser (headless mode)
+    parser = EDisclosureParser(headless=True)
+
+    try:
+        # Test 1: Fetch news list for YDEX in 2025
+        print("1. Fetching news list for YDEX (year 2025)...")
+        print("   (This uses browser automation to bypass anti-bot)")
+
+        event_ids = parser.fetch_news_list_page("YDEX", 2025)
+
+        if event_ids:
+            print(f"\n✓ Found {len(event_ids)} events")
+
+            # Test 2: Fetch details of first event
+            print(f"\n2. Fetching details of first event...")
+            print("   (Loading page and waiting for anti-bot...)")
+
+            news = parser.fetch_single_news(event_ids[0])
+
+            if news:
+                print(f"\n✓ Successfully parsed event:")
+                print(f"  Title: {news.title[:80]}...")
+                print(f"  Date: {news.published_date}")
+                print(f"  Source: {news.source}")
+                print(f"  URL: {news.url}")
+                print(f"  Text preview: {news.text[:150]}...")
+
+                # Test 3: Compare with SmartLab
+                print(f"\n3. Comparison with SmartLab:")
+                print(f"   E-Disclosure: Official disclosures, slower")
+                print(f"   SmartLab: Forum posts, faster")
+            else:
+                print("\n✗ Failed to parse event details")
+        else:
+            print("\n✗ No events found for YDEX in 2025")
+            print("   (May be normal if company has no disclosures)")
+
+    except Exception as e:
+        print(f"\n✗ Error: {e}")
+        logger.error(f"E-Disclosure test error: {e}")
+
+    finally:
+        # Important: Always close browser
+        parser.close()
+        print("\n✓ Browser closed")
+
+
 if __name__ == "__main__":
     # Choose which example to run
     import sys
@@ -223,6 +289,7 @@ if __name__ == "__main__":
         "5": ("Get Ticker News", example_5_get_ticker_news),
         "6": ("Process Single Page", example_6_process_single_page),
         "7": ("Duplicate Detection", example_7_check_duplicates),
+        "8": ("E-Disclosure Parser", example_8_test_edisclosure_parser),
     }
 
     print("\n" + "="*60)
