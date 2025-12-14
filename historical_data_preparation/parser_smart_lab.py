@@ -5,9 +5,9 @@ from datetime import datetime
 import os
 from dotenv import load_dotenv
 
-import ai_enrichers_and_filters
-import news_database_chroma
-import future_price_moex
+from . import ai_enrichers_and_filters
+from . import news_database_chroma
+from . import future_price_moex
 
 headers = {
     "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
@@ -143,41 +143,46 @@ def analyze_page_of_news_NEW(ticker: str, page_index: int):
             )
 
         # проверка на дубликат
-        should_skip, similar_event_to_replace = ai_enrichers_and_filters.check_and_handle_duplicates(
-            db=db,
-            original_text=data_from_post['text'],
-            enriched_event=enriched_event,
-            news_timestamp=data_from_post['date_timestamp']
-        )
+        # similar_in_db = db.find_similar_news_by_text(query_text=data_from_post.get('text'))
+        similar_in_db = db.find_similar_news_by_text(query_text=enriched_event.get('clean_description'))
+        if similar_in_db:
+            print('RAG - найдены похожие новости в БД')
+            duplicates_verdict = ai_enrichers_and_filters.find_duplicates(data_from_post['text'], [i.get('clean_description') for i in similar_in_db])
+            if duplicates_verdict:
+                print(f"LLM посчитала новости дубликатами:\n - {data_from_post['text']}\n - {duplicates_verdict.get('news')}")
 
-        if should_skip:
-            if similar_event_to_replace:
-                # Удаление похожей новости и добавление вместо нее той, которая появилась раньше
-                db.delete_news(similar_event_to_replace.get('url'))
+                # получение всех данных о схожей новости
+                for i in similar_in_db:
+                    if i.get('clean_description') == duplicates_verdict.get('news'):
+                        similar_event_data = i
 
-                # Получаем изменения цен
-                try:
-                    price_changes = future_price_moex.get_future_prices(
-                        news_time=data_from_post['date'],
-                        tickers=enriched_event.get('tickers_of_interest', [])
+                if data_from_post['date_timestamp'] < similar_event_data['date_timestamp']:
+                    # удаление похожей новости и добавление вместо нее той, которая появилась раньше
+                    db.delete_news(similar_event_data.get('url'))
+
+                    # Получаем изменения цен
+                    try:
+                        price_changes = future_price_moex.get_future_price_changes(
+                            news_time=data_from_post['date'],
+                            tickers=enriched_event.get('tickers_of_interest', [])
+                        )
+                        print(f"Got price changes for news")
+                    except Exception as e:
+                        print(f"Warning: Error fetching prices: {e}")
+                        price_changes = None
+
+                    db.save_news(
+                        url=link,
+                        title=data_from_post['title'],
+                        original_text=data_from_post['text'],
+                        enriched_data=enriched_event,
+                        published_date=data_from_post['date'],
+                        published_timestamp=data_from_post['date_timestamp'],
+                        other_urls=[similar_event_data['url']],
+                        price_changes=price_changes
                     )
-                    print(f"✓ Получены изменения цен для новости")
-                except Exception as e:
-                    print(f"⚠ Ошибка при получении цен: {e}")
-                    price_changes = None
 
-                db.save_news(
-                    url=link,
-                    title=data_from_post['title'],
-                    original_text=data_from_post['text'],
-                    enriched_data=enriched_event,
-                    published_date=data_from_post['date'],
-                    published_timestamp=data_from_post['date_timestamp'],
-                    other_urls=[similar_event_to_replace['url']],
-                    price_changes=price_changes
-                )
-
-            continue
+                continue
 
 
 
@@ -185,13 +190,13 @@ def analyze_page_of_news_NEW(ticker: str, page_index: int):
         if enriched_event and enriched_event.get('level_of_potential_impact_on_price') in ["low", "medium", "high"]:
             # Получаем изменения цен
             try:
-                price_changes = future_price_moex.get_future_prices(
+                price_changes = future_price_moex.get_future_price_changes(
                     news_time=data_from_post['date'],
                     tickers=enriched_event.get('tickers_of_interest', [])
                 )
-                print(f"✓ Получены изменения цен для новости")
+                print(f"Got price changes for news")
             except Exception as e:
-                print(f"⚠ Ошибка при получении цен: {e}")
+                print(f"Warning: Error fetching prices: {e}")
                 price_changes = None
 
             db.save_news(

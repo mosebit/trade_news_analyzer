@@ -6,7 +6,6 @@
 # Environment variables
 .env
 *.env
-/historical_data_preparation/.env
 
 # Python
 __pycache__/
@@ -30,7 +29,6 @@ myenv/
 *.sqlite
 *.sqlite3
 chroma_db*/
-chromadb*/
 *.chroma
 
 # IDE
@@ -39,10 +37,6 @@ chromadb*/
 *.swp
 *.swo
 *~
-
-# Jupyter Notebooks
-.ipynb_checkpoints/
-*.ipynb
 
 # Logs
 *.log
