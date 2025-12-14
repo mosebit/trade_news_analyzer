@@ -2,6 +2,14 @@
 Модуль для работы с ChromaDB базой новостей
 """
 
+# Fix SQLite version issue - must be before chromadb import
+import sys
+try:
+    __import__('pysqlite3')
+    sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
+except ImportError:
+    pass
+
 import chromadb
 import json
 from typing import List, Dict, Optional
@@ -18,7 +26,7 @@ class NewsDatabase:
         # self.collection = self.client.get_or_create_collection("news")
         self.collection = self.client.get_or_create_collection("news_cosine", metadata={"hnsw:space": "cosine"})
         self.model = SentenceTransformer('intfloat/multilingual-e5-small')
-        print(f"✓ ChromaDB инициализирована: {path}")
+        print(f"ChromaDB initialized: {path}")
 
     def create_embedding(self, enriched_data: Dict):
         """Создание эмбеддинга из обогащенных данных."""
@@ -49,7 +57,7 @@ class NewsDatabase:
             # Проверка дубликата
             existing = self.collection.get(ids=[url])
             if existing['ids']:
-                print(f"⚠ Новость с URL {url} уже существует")
+                print(f"Warning: News with URL {url} already exists")
                 return url
 
             # Создание эмбеддинга
@@ -89,11 +97,11 @@ class NewsDatabase:
                 metadatas=[metadata]
             )
 
-            print(f"✓ Новость сохранена (url={url}, тикеры={tickers})")
+            print(f"News saved (url={url}, tickers={tickers})")
             return url
 
         except Exception as e:
-            print(f"✗ Ошибка при сохранении новости: {e}")
+            print(f"Error saving news: {e}")
             return None
 
     def get_news(self, url: str) -> Optional[Dict]:
@@ -158,7 +166,7 @@ class NewsDatabase:
                     'distance': results['distances'][0][i]
                 })
 
-        print(f"✓ Найдено {len(similar)} похожих новостей.")
+        print(f"Found {len(similar)} similar news.")
         return similar
 
     def find_similar_news(self, url: str, limit: int = 5,
@@ -269,17 +277,17 @@ class NewsDatabase:
             existing = self.collection.get(ids=[url])
 
             if not existing['ids']:
-                print(f"⚠ Новость с URL {url} не найдена в базе")
+                print(f"Warning: News with URL {url} not found in database")
                 return False
 
             # Удаляем новость
             self.collection.delete(ids=[url])
 
-            print(f"✓ Новость удалена (url={url})")
+            print(f"News deleted (url={url})")
             return True
 
         except Exception as e:
-            print(f"✗ Ошибка при удалении новости: {e}")
+            print(f"Error deleting news: {e}")
             return False
 
     def get_stats(self) -> Dict:
@@ -305,7 +313,7 @@ class NewsDatabase:
 
     def close(self):
         """Закрытие соединения (для совместимости)."""
-        print("✓ ChromaDB не требует явного закрытия")
+        print("ChromaDB does not require explicit closing")
 
     def __enter__(self):
         return self

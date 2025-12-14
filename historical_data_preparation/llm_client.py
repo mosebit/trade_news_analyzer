@@ -5,7 +5,7 @@ Handles both OpenAI-compatible APIs and custom corporate APIs.
 
 import json
 import os
-from typing import List, Dict, Any, Optional, Protocol
+from typing import List, Dict, Optional
 from abc import ABC, abstractmethod
 import requests
 import urllib3
@@ -210,19 +210,20 @@ class CustomCorporateClient(BaseLLMClient):
 
 
 def create_llm_client(
-    use_custom: bool = False,
+    use_custom: Optional[bool] = None,
     api_key: Optional[str] = None,
     base_url: Optional[str] = None,
     model: Optional[str] = None,
 ) -> BaseLLMClient:
     """
     Factory function to create appropriate LLM client.
+    Automatically loads environment variables from .env in project root.
 
     Args:
-        use_custom: If True, use custom client, else OpenAI client
-        api_key: API key for OpenAI client (or from env LLM_API_KEY)
-        base_url: Base URL for OpenAI client (or from env BASE_URL)
-        model: Model name (or from env LLM_MODEL)
+        use_custom: If True, use custom client, else OpenAI client (if None - reads from USE_CUSTOM_CLIENT env)
+        api_key: API key for OpenAI client (if None - reads from LLM_API_KEY env)
+        base_url: Base URL for OpenAI client (if None - reads from BASE_URL env)
+        model: Model name (if None - reads from LLM_MODEL env)
 
     Returns:
         Configured LLM client instance
@@ -230,21 +231,25 @@ def create_llm_client(
     Raises:
         ValueError: If required configuration is missing
     """
-    # Get model name
+    from dotenv import load_dotenv
+
+    # Load .env from project root (parent of historical_data_preparation)
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    load_dotenv(os.path.join(project_root, '.env'))
+
+    use_custom = use_custom or os.getenv("USE_CUSTOM_CLIENT", "false").lower() == "true"
+    api_key = api_key or os.getenv("LLM_API_KEY")
+    base_url = base_url or os.getenv("BASE_URL")
     model = model or os.getenv("LLM_MODEL")
+
     if not model:
         raise ValueError("Model name not provided (set LLM_MODEL in env)")
+    if not base_url:
+        raise ValueError("Base url not provided (set BASE_URL in env)")
+    if not api_key:
+        raise ValueError("API key not provided (set LLM_API_KEY in env)")
 
     if use_custom:
-        if not base_url:
-            raise ValueError(
-                "Custom API URL not provided (set LLM_API_URL in env)"
-            )
-        if not api_key:
-            raise ValueError(
-                "Custom API token not provided (set LLM_API_TOKEN in env)"
-            )
-
         logger.info("Using custom corporate LLM client")
         return CustomCorporateClient(
             base_url=base_url,
@@ -252,19 +257,6 @@ def create_llm_client(
             model=model
         )
     else:
-        # Standard OpenAI client
-        api_key = api_key or os.getenv("LLM_API_KEY")
-        base_url = base_url or os.getenv("BASE_URL")
-
-        if not api_key:
-            raise ValueError(
-                "API key not provided (set LLM_API_KEY in env)"
-            )
-        if not base_url:
-            raise ValueError(
-                "Base URL not provided (set BASE_URL in env)"
-            )
-
         logger.info("Using OpenAI-compatible LLM client")
         return OpenAIClient(
             api_key=api_key,
@@ -276,9 +268,12 @@ def create_llm_client(
 if __name__ == "__main__":
     # Test the clients
     import sys
+    import os
     from dotenv import load_dotenv
 
-    load_dotenv()
+    # Load .env from project root
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    load_dotenv(os.path.join(project_root, '.env'))
 
     logger.remove()
     logger.add(sys.stderr, level="INFO")

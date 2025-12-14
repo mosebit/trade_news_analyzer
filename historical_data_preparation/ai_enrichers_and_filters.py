@@ -1,21 +1,10 @@
 from pydantic import BaseModel, Field
 from typing import List, Literal
-import os
 import json
-from dotenv import load_dotenv
-import sys
 
-from llm_client import create_llm_client
+from .llm_client import create_llm_client
 
-load_dotenv(os.path.join(os.path.dirname(__file__), '.env'))
-
-# Initialize LLM client using the factory function
-client = create_llm_client(
-    use_custom=os.getenv("USE_CUSTOM_CLIENT", "false").lower() == "true",
-    api_key=os.getenv("LLM_API_KEY"),
-    base_url=os.getenv("BASE_URL"),
-    model=os.getenv("LLM_MODEL")
-)
+client = create_llm_client()
 model = client.get_model_name()
 
 TICKERS = ["SBER", "POSI", "ROSN", "YDEX"]
@@ -76,10 +65,10 @@ def enrich_news_data(event_description: str, tickers_data: dict):
 
         Верни ответ строго в JSON формате со следующей структурой:
         {{
-            "clean_description": "краткое описание новости",
-            "sentiment": "positive/negative/neutral",
-            "tickers_of_interest": ["TICKER1", "TICKER2"],
-            "level_of_potential_impact_on_price": "none/low/medium/high"
+        "clean_description": "краткое описание новости",
+        "sentiment": "positive/negative/neutral",
+        "tickers_of_interest": ["TICKER1", "TICKER2"],
+        "level_of_potential_impact_on_price": "none/low/medium/high"
         }}
     """
 
@@ -237,69 +226,6 @@ def find_duplicates(main_news: str, news_list: List[str]):
     except Exception as e:
         print(f"Ошибка при проверке дубликатов: {e}")
         return None
-
-
-def check_and_handle_duplicates(db, original_text: str, enriched_event: dict, news_timestamp: int, distance_threshold: float = 0.05):
-    """
-    Проверяет наличие дубликатов новости в базе данных.
-
-    Args:
-        db: Экземпляр базы данных с методами find_similar_news_by_text
-        original_text: Оригинальный текст новости
-        enriched_event: Обогащенные данные новости (с clean_description)
-        news_timestamp: Временная метка новости для сравнения
-        distance_threshold: Порог distance для LLM проверки (по умолчанию 0.05)
-
-    Returns:
-        tuple: (should_skip, similar_event_to_replace)
-            - should_skip (bool): True если новость - дубликат и нужно пропустить
-            - similar_event_to_replace (dict|None): Данные похожей новости для замены, если текущая новость старше
-    """
-    # Поиск похожих новостей в базе
-    similar_in_db = db.find_similar_news_by_text(query_text=enriched_event.get('clean_description'))
-
-    if not similar_in_db:
-        return False, None
-
-    print('RAG - найдены похожие новости в БД')
-
-    # Оптимизация: проверяем distance - если слишком далеко, точно не дубликат
-    very_similar = [i for i in similar_in_db if i.get('distance', 1.0) < distance_threshold]
-
-    if not very_similar:
-        print(f'RAG distance >= {distance_threshold} для всех похожих новостей - пропускаем дорогую LLM проверку')
-        return False, None
-
-    # Только для очень похожих новостей делаем дорогую LLM проверку
-    duplicates_verdict = find_duplicates(
-        original_text,
-        [i.get('clean_description') for i in very_similar]
-    )
-
-    if not duplicates_verdict:
-        return False, None
-
-    print(f'LLM посчитала новости дубликатами:\n - {original_text}\n - {duplicates_verdict.get("news")}')
-
-    # Получение всех данных о схожей новости
-    similar_event_data = None
-    for i in very_similar:
-        if i.get('clean_description') == duplicates_verdict.get('news'):
-            similar_event_data = i
-            break
-
-    if not similar_event_data:
-        return False, None
-
-    # Сравниваем даты - если текущая новость старше, нужно заменить
-    if news_timestamp < similar_event_data['date_timestamp']:
-        print(f"Текущая новость старше ({news_timestamp} < {similar_event_data['date_timestamp']}) - нужна замена")
-        return True, similar_event_data
-    else:
-        # Текущая новость новее дубликата - просто пропускаем
-        print(f"Текущая новость новее ({news_timestamp} >= {similar_event_data['date_timestamp']}) - пропускаем")
-        return True, None
-
 
 # Пример использования
 if __name__ == "__main__":
