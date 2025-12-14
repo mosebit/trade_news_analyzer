@@ -95,6 +95,8 @@ def get_future_prices(
 
     return result
 
-# example
-prices = get_future_prices("2025-12-03 12:00:00", ["SBER", "YDEX", "POSI", "ROSN"])
-print(prices)
+
+if __name__ == "__main__":
+    # example
+    prices = get_future_prices("2025-12-03 12:00:00", ["SBER", "YDEX", "POSI", "ROSN"])
+    print(prices)

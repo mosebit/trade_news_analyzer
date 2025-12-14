@@ -9,8 +9,9 @@ from dotenv import load_dotenv
 import parser_edisclosure_playwright as edisclosure_api
 import news_database_chroma
 import ai_enrichers_and_filters
+import future_price_moex
 
-# TODO - tickers_descriptions перенести в JSON 
+# TODO - tickers_descriptions перенести в JSON
 from parser_smart_lab import tickers_descriptions
 
 mapping_tickers_ids = {
@@ -28,7 +29,7 @@ def get_years_in_past(year):
 
 def get_pretty_data_from_one_post(html_content):
     tree = html.fromstring(html_content)
-    
+
     # Парсим дату
     date_str = tree.xpath('//div[@class="time left"]/span[@class="date"]/text()')[0].strip()
     # '12.12.2025 16:17'
@@ -43,12 +44,12 @@ def get_pretty_data_from_one_post(html_content):
         hour,
         minute
     )
-    
+
     # Текст
     title = tree.xpath('//h4/text()')[0]
     content = tree.xpath('//div[@style="word-break: break-word; word-wrap: break-word; white-space: pre-wrap;"]/text()')[0]
     # tags = tree.xpath('//ul[@class="tags"]//a/text()')
-    
+
     return {
         'date': date_obj.isoformat(),
         'date_timestamp': int(date_obj.timestamp()),
@@ -84,13 +85,77 @@ def analyze_company_news_until_timestamp(ticker, date_obj_until: datetime):
                         event_parsed_data['text'],
                         tickers_descriptions
                         )
-                    
-                    # TODO - тут поиск похожих в базе и проверка на дубликты
-                    
+
+                    # проверка на дубликат
+                    should_skip, similar_event_to_replace = ai_enrichers_and_filters.check_and_handle_duplicates(
+                        db=db,
+                        original_text=event_parsed_data['text'],
+                        enriched_event=enriched_event,
+                        news_timestamp=event_parsed_data['date_timestamp']
+                    )
+
+                    if should_skip:
+                        if similar_event_to_replace:
+                            # Удаление похожей новости и добавление вместо нее той, которая появилась раньше
+                            db.delete_news(similar_event_to_replace.get('url'))
+
+                            # Получаем изменения цен
+                            try:
+                                price_changes = future_price_moex.get_future_prices(
+                                    news_time=event_parsed_data['date'],
+                                    tickers=enriched_event.get('tickers_of_interest', [])
+                                )
+                                print(f"✓ Получены изменения цен для новости")
+                            except Exception as e:
+                                print(f"⚠ Ошибка при получении цен: {e}")
+                                price_changes = None
+
+                            # Генерируем URL из event_id
+                            event_url = f"https://www.e-disclosure.ru/portal/event.aspx?EventId={event_id}&CompanyId={company_id}"
+
+                            db.save_news(
+                                url=event_url,
+                                title=event_parsed_data['title'],
+                                original_text=event_parsed_data['text'],
+                                enriched_data=enriched_event,
+                                published_date=event_parsed_data['date'],
+                                published_timestamp=event_parsed_data['date_timestamp'],
+                                other_urls=[similar_event_to_replace['url']],
+                                price_changes=price_changes
+                            )
+
+                        continue
+
                     # если время собранной новости уже больше граничного для анализа, то сворачиваемся
                     if event_parsed_data.get('date_timestamp') < date_obj_until.timestamp():
                         end_of_analysis = True
                         break
+
+                    # Сохраняем новость если она прошла все проверки
+                    if enriched_event and enriched_event.get('level_of_potential_impact_on_price') in ["low", "medium", "high"]:
+                        # Получаем изменения цен
+                        try:
+                            price_changes = future_price_moex.get_future_prices(
+                                news_time=event_parsed_data['date'],
+                                tickers=enriched_event.get('tickers_of_interest', [])
+                            )
+                            print(f"✓ Получены изменения цен для новости")
+                        except Exception as e:
+                            print(f"⚠ Ошибка при получении цен: {e}")
+                            price_changes = None
+
+                        # Генерируем URL из event_id
+                        event_url = f"https://www.e-disclosure.ru/portal/event.aspx?EventId={event_id}&CompanyId={company_id}"
+
+                        db.save_news(
+                            url=event_url,
+                            title=event_parsed_data['title'],
+                            original_text=event_parsed_data['text'],
+                            enriched_data=enriched_event,
+                            published_date=event_parsed_data['date'],
+                            published_timestamp=event_parsed_data['date_timestamp'],
+                            price_changes=price_changes
+                        )
 
                 if end_of_analysis:
                     break
@@ -98,7 +163,9 @@ def analyze_company_news_until_timestamp(ticker, date_obj_until: datetime):
 
             elif events_small_data == []: # когда возвращается пустой список это значит новостей за переданный год и последующие уже нет
                 break
-    
+
+    # Закрываем БД
+    db.close()
 
 def prepare_news_until_date(date_iso: str, tickers: list):
     date_obj = datetime.fromisoformat(date_iso)
