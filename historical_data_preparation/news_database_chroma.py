@@ -14,10 +14,24 @@ import chromadb
 import json
 from typing import List, Dict, Optional
 from sentence_transformers import SentenceTransformer
+from dataclasses import dataclass
 
 # Фиксированный список тикеров для статистики
 TICKERS = ["SBER", "POSI", "ROSN", "YDEX"]
 
+@dataclass
+class PreparedEvent:
+    url: str
+    title: str
+    clean_description: str
+    original_text: str
+    tickers: list
+    sentiment: str
+    impact: str
+    published_date: str
+    timestamp: int
+    enriched_json: Optional[str] = None
+    # embeddings: Optional[list] = None
 
 class NewsDatabase:
     def __init__(self, path: str = "./chroma_db"):
@@ -103,6 +117,61 @@ class NewsDatabase:
         except Exception as e:
             print(f"Error saving news: {e}")
             return None
+        
+    def save_news_new(self, event: PreparedEvent, price_changes: Optional[Dict] = None) -> Optional[str]:
+        """Сохранение новости в базу данных."""
+        try:
+            # Проверка дубликата
+            existing = self.collection.get(ids=[event.url])
+            if existing['ids']:
+                print(f"Warning: News with URL {event.url} already exists")
+                return event.url
+
+            # Создание эмбеддинга
+            embedding = self.create_embedding({
+                'clean_description': event.clean_description,
+                'sentiment': event.sentiment,
+                'level_of_potential_impact_on_price': event.impact,
+                'tickers_of_interest': event.tickers
+            })
+
+            # Подготовка данных
+            tickers = event.tickers
+            impact_level = event.impact
+
+            # Создаем базовые метаданные
+            metadata = {
+                'title': event.title or '',
+                'original_text': event.original_text[:3500],
+                'tickers': ','.join(tickers),
+                'sentiment': event.sentiment,
+                'impact': impact_level,
+                'published_date': event.published_date or '',
+                'timestamp': event.timestamp or 0
+            }
+
+            # Добавляем изменения цен, если они есть
+            if price_changes:
+                metadata['price_changes'] = json.dumps(price_changes, ensure_ascii=False)
+
+            # НОВЫЙ ПОДХОД: создаем поля TICKER_impact только для упомянутых тикеров
+            for ticker in tickers:
+                if ticker:
+                    metadata[f'{ticker}_impact'] = impact_level
+
+            self.collection.add(
+                ids=[event.url],
+                embeddings=[embedding.tolist()],
+                documents=[event.clean_description],
+                metadatas=[metadata]
+            )
+
+            print(f"News saved (url={event.url}, tickers={tickers})")
+            return event.url
+
+        except Exception as e:
+            print(f"Error saving news: {e}")
+            return None
 
     def get_news(self, url: str) -> Optional[Dict]:
         """Получить полную информацию о новости."""
@@ -166,6 +235,39 @@ class NewsDatabase:
                     'distance': results['distances'][0][i]
                 })
 
+        print(f"Found {len(similar)} similar news.")
+        return similar
+        
+    def find_similar_news_by_event_new(self, event: PreparedEvent, limit: int = 5, days_back: Optional[int] = None, threshold: Optional[float] = 0.10) -> List[Dict]:
+        """Finds similar news based on a PreparedEvent object."""
+        query_embedding = self.create_embedding({
+            'clean_description': event.clean_description,
+            'sentiment': event.sentiment,
+            'level_of_potential_impact_on_price': event.impact,
+            'tickers_of_interest': event.tickers
+        })
+
+        # Поиск
+        results = self.collection.query(
+            query_embeddings=[query_embedding.tolist()],  # ChromaDB ожидает list of lists
+            n_results=limit,
+            # where=where,
+            include=['metadatas', 'documents', 'distances']
+        )
+        similar = []
+        # results['ids'][0] - список ID, results['metadatas'][0] - список метаданных
+        for i, result_url in enumerate(results['ids'][0]):
+            metadata = results['metadatas'][0][i]
+            if results['distances'][0][i] <= threshold:
+                similar.append({
+                    'url': result_url,
+                    'title': metadata.get('title', ''),
+                    'clean_description': results['documents'][0][i],
+                    'sentiment': metadata.get('sentiment', ''),
+                    'published_datetime': metadata.get('published_datetime', ''),
+                    'date_timestamp': metadata.get('timestamp', ''),
+                    'distance': results['distances'][0][i]
+                })
         print(f"Found {len(similar)} similar news.")
         return similar
 
@@ -323,7 +425,7 @@ class NewsDatabase:
 
 
 if __name__ == "__main__":
-    db = NewsDatabase("./chromadb_v1")
+    db = NewsDatabase("./chroma_db_new")
 
     stats = db.get_stats()
     print("\nСтатистика:")
@@ -333,10 +435,10 @@ if __name__ == "__main__":
         # print(db.find_similar_news_by_text(query_text="Заявление Дональда Трампа о полном отказе Индии от российской нефти оказалось полной неожиданностью для индийских НПЗ, включая Indian Oil Corp и Reliance Industries Ltd, которые рассчитывали лишь на незначительное сокращение объемов. В то же время, Mangalore Refinery and Petrochemicals Ltd не намерена менять свои планы поставок. Несмотря на политическое давление, Bloomberg прогнозирует рост поставок нефти из РФ в Индию в октябре на шесть процентов по сравнению с предыдущим месяцем."))
 
         print("\n--- Пример новостей по SBER ---")
-        sber_all = db.get_news_by_ticker('SBER', limit=10)
+        sber_all = db.get_news_by_ticker('SBER', limit=100)
         print(f"Найдено: {len(sber_all)}")
         for i, sber_event in enumerate(sber_all):
-            print(f"{i}.\t{sber_event.get('clean_description')}")
+            print(f"{i}.\t{sber_event.get('published_date')}")
 
         # print("\n--- Важные новости по SBER (high impact) ---")
         # sber_high = db.get_news_by_ticker('SBER', limit=5, min_impact='high')

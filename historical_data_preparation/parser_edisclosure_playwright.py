@@ -182,7 +182,7 @@ class EDisclosureClient:
         else:
             print(f"✓ Успешно получен HTML ({len(html)} символов)")
         
-        return html
+        return html, event_url
     
     def close(self):
         """Закрыть браузер"""

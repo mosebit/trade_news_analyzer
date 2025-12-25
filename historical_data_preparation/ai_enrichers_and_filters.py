@@ -2,9 +2,16 @@ from pydantic import BaseModel, Field
 from typing import List, Literal
 import json
 
-from .llm_client import create_llm_client
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-client = create_llm_client()
+# from .llm_client import create_llm_client
+
+import llm_client
+from news_database_chroma import PreparedEvent
+
+client = llm_client.create_llm_client()
 model = client.get_model_name()
 
 TICKERS = ["SBER", "POSI", "ROSN", "YDEX"]
@@ -210,7 +217,7 @@ def find_duplicates(main_news: str, news_list: List[str]):
         if result.is_duplicate and result.duplicate_index is not None:
             if 0 <= result.duplicate_index < len(news_list):
                 return {
-                    "index": result.duplicate_index,
+                    "index": int(result.duplicate_index),
                     "news": news_list[result.duplicate_index]
                 }
             else:

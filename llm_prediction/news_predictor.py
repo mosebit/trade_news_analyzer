@@ -9,6 +9,8 @@ from typing import Dict, List, Optional
 from datetime import datetime, timedelta
 from pydantic import BaseModel, Field
 
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 # Fix SQLite version issue - must be before any chromadb imports
 try:
     __import__('pysqlite3')
@@ -371,3 +373,5 @@ if __name__ == "__main__":
     print(json.dumps(result, ensure_ascii=False, indent=2))
 
     predictor.close()
+
+
