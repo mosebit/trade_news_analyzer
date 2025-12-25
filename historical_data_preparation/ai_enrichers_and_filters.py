@@ -8,8 +8,8 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # from .llm_client import create_llm_client
 
-import llm_client
-from news_database_chroma import PreparedEvent
+from . import llm_client
+from .news_database_chroma import PreparedEvent
 
 client = llm_client.create_llm_client()
 model = client.get_model_name()

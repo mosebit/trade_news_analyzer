@@ -5,10 +5,10 @@ from datetime import datetime
 import os
 from dotenv import load_dotenv
 
-import ai_enrichers_and_filters
-import news_database_chroma
-import future_price_moex
-import saving_pipeline
+from . import ai_enrichers_and_filters
+from . import news_database_chroma
+from . import future_price_moex
+from . import saving_pipeline
 
 headers = {
     "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
@@ -54,26 +54,6 @@ def get_pretty_post_links(html_content):
 
     return full_links
 
-# def get_pretty_data_from_one_post(html_content):
-#     tree = html.fromstring(html_content)
-
-#     # Дата
-#     date = tree.xpath('//li[@class="date"]/text()')[0].strip()
-
-#     # Весь текст для эмбеддинга
-#     title = tree.xpath('//h1[@class="title "]//span/text()')[0]
-#     content = ' '.join(tree.xpath('//div[@class="content"]//text()[normalize-space()]'))
-#     tags = tree.xpath('//ul[@class="tags"]//a/text()')
-
-#     # Объединяем
-#     full_text = f"{title}. {content}. {' '.join(tags)}"
-
-#     return {
-#         'date': date,
-#         'text': full_text,
-#         'title': title  # для отладки
-#     }
-
 MONTHS = {'января':1,'февраля':2,'марта':3,'апреля':4,'мая':5,'июня':6,
           'июля':7,'августа':8,'сентября':9,'октября':10,'ноября':11,'декабря':12}
 
@@ -117,6 +97,31 @@ tickers_descriptions = {
     }
 }
 
+def analyze_page_with_url(url: str):
+    # получение данных по конкретному посту
+    raw_page = fetch_raw_data_by_url(url)
+    data_from_post = get_pretty_data_from_one_post(raw_page.text)
+
+    # отправка в LLM для обогащения
+    enriched_event = ai_enrichers_and_filters.enrich_news_data(
+        data_from_post['text'],
+        tickers_descriptions
+        )
+
+    prepared_for_saving = news_database_chroma.PreparedEvent(
+        url=url,
+        title=data_from_post.get('title'),
+        clean_description=enriched_event.get('clean_description'),
+        original_text=data_from_post.get('text'),
+        tickers=enriched_event.get('tickers_of_interest', []),
+        sentiment=enriched_event.get('sentiment'),
+        impact=enriched_event.get('level_of_potential_impact_on_price'),
+        published_date=data_from_post.get('date'),
+        timestamp=data_from_post.get('date_timestamp')
+    )
+
+    return prepared_for_saving
+
 def analyze_page_of_news_NEW(ticker: str, page_index: int):
     raw_posts = fetch_raw_smartlab_post_links(ticker, page_index)
     links_list = get_pretty_post_links(raw_posts.text)
@@ -128,114 +133,34 @@ def analyze_page_of_news_NEW(ticker: str, page_index: int):
     smallest_date_int = 32536799999 # Maximum value of timestamp
 
     for link in links_list:
-        # получение данных по конкретному посту
-        raw_page = fetch_raw_data_by_url(link)
-        data_from_post = get_pretty_data_from_one_post(raw_page.text)
+        # # получение данных по конкретному посту
+        # raw_page = fetch_raw_data_by_url(link)
+        # data_from_post = get_pretty_data_from_one_post(raw_page.text)
 
-        if data_from_post['date_timestamp'] < smallest_date_int:
-            smallest_date_int = data_from_post['date_timestamp']
+        prepared_for_saving = analyze_page_with_url(link)
 
-        # TODO: дополнительный шаг (НА БУДУЩЕЕ) - проверка наличия дублкатов новости в базе
+        if prepared_for_saving.timestamp < smallest_date_int:
+            smallest_date_int = prepared_for_saving.timestamp
 
-        # отправка в LLM для обогащения
-        enriched_event = ai_enrichers_and_filters.enrich_news_data(
-            data_from_post['text'],
-            tickers_descriptions
-            )
-        
-        # 'date': date_obj.isoformat(),
-        # 'date_timestamp': int(date_obj.timestamp()),
-        # 'text': f"{title}. {content}. {' '.join(tags)}",
-        # 'title': title
+        # # отправка в LLM для обогащения
+        # enriched_event = ai_enrichers_and_filters.enrich_news_data(
+        #     data_from_post['text'],
+        #     tickers_descriptions
+        #     )
 
-        prepared_for_saving = news_database_chroma.PreparedEvent(
-            url=link,
-            title=data_from_post.get('title'),
-            clean_description=enriched_event.get('clean_description'),
-            original_text=data_from_post.get('text'),
-            tickers=enriched_event.get('tickers_of_interest', []),
-            sentiment=enriched_event.get('sentiment'),
-            impact=enriched_event.get('level_of_potential_impact_on_price'),
-            published_date=data_from_post.get('date'),
-            timestamp=data_from_post.get('date_timestamp')
-        )
+        # prepared_for_saving = news_database_chroma.PreparedEvent(
+        #     url=link,
+        #     title=data_from_post.get('title'),
+        #     clean_description=enriched_event.get('clean_description'),
+        #     original_text=data_from_post.get('text'),
+        #     tickers=enriched_event.get('tickers_of_interest', []),
+        #     sentiment=enriched_event.get('sentiment'),
+        #     impact=enriched_event.get('level_of_potential_impact_on_price'),
+        #     published_date=data_from_post.get('date'),
+        #     timestamp=data_from_post.get('date_timestamp')
+        # )
 
         saving_pipeline.saving_pipeline(prepared_for_saving, './chroma_db_new')
-
-
-
-        # # проверка на дубликат
-        # # similar_in_db = db.find_similar_news_by_text(query_text=data_from_post.get('text'))
-        # similar_in_db = db.find_similar_news_by_text(query_text=enriched_event.get('clean_description'))
-        # if similar_in_db:
-        #     print('RAG - найдены похожие новости в БД')
-        #     duplicates_verdict = ai_enrichers_and_filters.find_duplicates(data_from_post['text'], [i.get('clean_description') for i in similar_in_db])
-        #     if duplicates_verdict:
-        #         print(f"LLM посчитала новости дубликатами:\n - {data_from_post['text']}\n - {duplicates_verdict.get('news')}")
-
-        #         # получение всех данных о схожей новости
-        #         for i in similar_in_db:
-        #             if i.get('clean_description') == duplicates_verdict.get('news'):
-        #                 similar_event_data = i
-
-        #         if data_from_post['date_timestamp'] < similar_event_data['date_timestamp']:
-        #             # удаление похожей новости и добавление вместо нее той, которая появилась раньше
-        #             db.delete_news(similar_event_data.get('url'))
-
-        #             # Получаем изменения цен
-        #             try:
-        #                 price_changes = future_price_moex.get_future_price_changes(
-        #                     news_time=data_from_post['date'],
-        #                     tickers=enriched_event.get('tickers_of_interest', [])
-        #                 )
-        #                 print(f"Got price changes for news")
-        #             except Exception as e:
-        #                 print(f"Warning: Error fetching prices: {e}")
-        #                 price_changes = None
-
-        #             db.save_news(
-        #                 url=link,
-        #                 title=data_from_post['title'],
-        #                 original_text=data_from_post['text'],
-        #                 enriched_data=enriched_event,
-        #                 published_date=data_from_post['date'],
-        #                 published_timestamp=data_from_post['date_timestamp'],
-        #                 other_urls=[similar_event_data['url']],
-        #                 price_changes=price_changes
-        #             )
-    #             continue
-    #     # print(enriched_event['clean_description'])
-    #     if enriched_event and enriched_event.get('level_of_potential_impact_on_price') in ["low", "medium", "high"]:
-    #         # Получаем изменения цен
-    #         try:
-    #             price_changes = future_price_moex.get_future_price_changes(
-    #                 news_time=data_from_post['date'],
-    #                 tickers=enriched_event.get('tickers_of_interest', [])
-    #             )
-    #             print(f"Got price changes for news")
-    #         except Exception as e:
-    #             print(f"Warning: Error fetching prices: {e}")
-    #             price_changes = None
-
-    #         db.save_news(
-    #             url=link,
-    #             title=data_from_post['title'],
-    #             original_text=data_from_post['text'],
-    #             enriched_data=enriched_event,
-    #             published_date=data_from_post['date'],
-    #             published_timestamp=data_from_post['date_timestamp'],
-    #             price_changes=price_changes
-    #         )
-
-    # # Вывод статистики
-    # print("\n" + "="*50)
-    # print("СТАТИСТИКА:")
-    # stats = db.get_stats()
-    # print(f"Всего новостей в базе: {stats['total_news']}")
-    # print(f"По тикерам: {stats['by_ticker']}")
-    # print("="*50)
-
-    # db.close()
 
     return smallest_date_int
 
@@ -256,6 +181,24 @@ def prepare_news_until_date(date_iso: str, tickers: list):
 
     return timestamp_of_end
 
+def prepare_urls_until_timestamp(timestamp_of_end: int, ticker: str):
+    """ Функция получает timestamp, ticker и выдает все существующие новости с текущего момента до данного timestamp """
+    page_index = 0
+    urls = []
+    while True:
+        raw_posts = fetch_raw_smartlab_post_links(ticker, page_index)
+        links_list = get_pretty_post_links(raw_posts.text)
+
+        for post_link in links_list:
+            raw_page = fetch_raw_data_by_url(post_link)
+            data_from_post = get_pretty_data_from_one_post(raw_page.text)
+
+            if timestamp_of_end > data_from_post['date_timestamp']:
+                return urls
+            
+            urls.append(post_link)
+
+        page_index += 1
 
 if __name__ == "__main__":
     # Load environment variables from .env file

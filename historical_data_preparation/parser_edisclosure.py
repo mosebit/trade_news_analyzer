@@ -6,14 +6,14 @@ from datetime import datetime
 import os
 from dotenv import load_dotenv
 
-import parser_edisclosure_playwright as edisclosure_api
-import news_database_chroma
-import ai_enrichers_and_filters
-import future_price_moex
-import saving_pipeline
+from . import parser_edisclosure_playwright as edisclosure_api
+from . import news_database_chroma
+from . import ai_enrichers_and_filters
+from . import future_price_moex
+from . import saving_pipeline
 
 # TODO - tickers_descriptions перенести в JSON
-from parser_smart_lab import tickers_descriptions
+from .parser_smart_lab import tickers_descriptions
 
 import logger
 

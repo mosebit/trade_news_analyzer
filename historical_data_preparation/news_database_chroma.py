@@ -412,6 +412,37 @@ class NewsDatabase:
             'by_ticker': ticker_counts,
             'vector_mode': 'ChromaDB (быстрый)'
         }
+        
+    def filter_unsaved_urls(self, urls: List[str]) -> List[str]:
+        """
+        Фильтрует список URL, возвращая только те, которые отсутствуют в базе данных.
+        
+        Args:
+            urls: список URL для проверки
+            
+        Returns:
+            список URL, которые не найдены в базе данных
+        """
+        if not urls:
+            return []
+        
+        try:
+            # Получаем существующие URL одним запросом
+            existing = self.collection.get(
+                ids=urls,
+                include=[]  # не нужны метаданные, только ID
+            )
+            
+            existing_set = set(existing['ids'])
+            unsaved = [url for url in urls if url not in existing_set]
+            
+            print(f"Checked {len(urls)} URLs: {len(unsaved)} new, {len(existing_set)} already in DB")
+            return unsaved
+            
+        except Exception as e:
+            print(f"Error filtering URLs: {e}")
+            return urls  # в случае ошибки возвращаем все URL
+
 
     def close(self):
         """Закрытие соединения (для совместимости)."""
@@ -432,7 +463,6 @@ if __name__ == "__main__":
     print(json.dumps(stats, ensure_ascii=False, indent=2))
 
     if stats['total_news'] > 0:
-        # print(db.find_similar_news_by_text(query_text="Заявление Дональда Трампа о полном отказе Индии от российской нефти оказалось полной неожиданностью для индийских НПЗ, включая Indian Oil Corp и Reliance Industries Ltd, которые рассчитывали лишь на незначительное сокращение объемов. В то же время, Mangalore Refinery and Petrochemicals Ltd не намерена менять свои планы поставок. Несмотря на политическое давление, Bloomberg прогнозирует рост поставок нефти из РФ в Индию в октябре на шесть процентов по сравнению с предыдущим месяцем."))
 
         print("\n--- Пример новостей по SBER ---")
         sber_all = db.get_news_by_ticker('SBER', limit=100)

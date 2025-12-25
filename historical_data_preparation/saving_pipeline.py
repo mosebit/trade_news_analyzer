@@ -9,9 +9,9 @@
 анализируемая в данный момент) имеет более раннюю дату публикации, в базе должна остаться самая ранняя новость.
 """
 
-import ai_enrichers_and_filters
-import news_database_chroma
-import future_price_moex
+from . import ai_enrichers_and_filters
+from . import news_database_chroma
+from . import future_price_moex
 
 
 def find_duplicates(
