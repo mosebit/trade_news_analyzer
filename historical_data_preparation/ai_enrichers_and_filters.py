@@ -2,9 +2,9 @@ from pydantic import BaseModel, Field
 from typing import List, Literal, Optional
 import json
 
-import sys
-import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# import sys
+# import os
+# sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # from .llm_client import create_llm_client
 

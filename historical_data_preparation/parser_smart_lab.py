@@ -126,39 +126,13 @@ def analyze_page_of_news_NEW(ticker: str, page_index: int):
     raw_posts = fetch_raw_smartlab_post_links(ticker, page_index)
     links_list = get_pretty_post_links(raw_posts.text)
 
-    # Инициализация БД
-    # db = news_database.NewsDatabase("news_data.db")
-    # db = news_database_chroma.NewsDatabase("./chroma_db_new")
-
     smallest_date_int = 32536799999 # Maximum value of timestamp
 
     for link in links_list:
-        # # получение данных по конкретному посту
-        # raw_page = fetch_raw_data_by_url(link)
-        # data_from_post = get_pretty_data_from_one_post(raw_page.text)
-
         prepared_for_saving = analyze_page_with_url(link)
 
         if prepared_for_saving.timestamp < smallest_date_int:
             smallest_date_int = prepared_for_saving.timestamp
-
-        # # отправка в LLM для обогащения
-        # enriched_event = ai_enrichers_and_filters.enrich_news_data(
-        #     data_from_post['text'],
-        #     tickers_descriptions
-        #     )
-
-        # prepared_for_saving = news_database_chroma.PreparedEvent(
-        #     url=link,
-        #     title=data_from_post.get('title'),
-        #     clean_description=enriched_event.get('clean_description'),
-        #     original_text=data_from_post.get('text'),
-        #     tickers=enriched_event.get('tickers_of_interest', []),
-        #     sentiment=enriched_event.get('sentiment'),
-        #     impact=enriched_event.get('level_of_potential_impact_on_price'),
-        #     published_date=data_from_post.get('date'),
-        #     timestamp=data_from_post.get('date_timestamp')
-        # )
 
         saving_pipeline.saving_pipeline(prepared_for_saving, './chroma_db_new')
 

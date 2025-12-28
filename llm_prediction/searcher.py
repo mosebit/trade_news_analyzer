@@ -2,10 +2,10 @@
 Данный модуль отвечает за поиск свежих непроанализированных новостей.
 """
 
-import sys
-from pathlib import Path
-project_root = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(project_root))
+# import sys
+# from pathlib import Path
+# project_root = Path(__file__).resolve().parent.parent
+# sys.path.insert(0, str(project_root))
 
 from historical_data_preparation import parser_smart_lab
 from historical_data_preparation import news_database_chroma

@@ -1,14 +1,14 @@
 """В этом модуле реализована логика обработки новостей, появляющихся в реальном времени"""
 import sys
-from pathlib import Path
-project_root = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(project_root))
+# from pathlib import Path
+# project_root = Path(__file__).resolve().parent.parent
+# sys.path.insert(0, str(project_root))
 
 from historical_data_preparation import news_database_chroma
 from historical_data_preparation import saving_pipeline
 from historical_data_preparation import ai_enrichers_and_filters
 from historical_data_preparation import future_price_moex
-import searcher
+from llm_prediction import searcher
 
 import os
 import json
@@ -137,7 +137,7 @@ def event_process_chain(
     
 if __name__ == "__main__":
     db = news_database_chroma.NewsDatabase(path='./chroma_db_new')
-    new_events = searcher.find_new_news(['SBER', 'POSI'], 160000)
+    new_events = searcher.find_new_news(['SBER', 'POSI'], 320000)
     for event in new_events:
         event_process_chain(event, db)
 
