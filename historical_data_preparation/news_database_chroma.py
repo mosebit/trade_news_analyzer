@@ -12,7 +12,7 @@ except ImportError:
 
 import chromadb
 import json
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Literal
 from sentence_transformers import SentenceTransformer
 from dataclasses import dataclass
 
@@ -27,7 +27,7 @@ class PreparedEvent:
     original_text: str
     tickers: list
     sentiment: str
-    impact: str
+    impact: Literal["none", "low", "medium", "high"]
     published_date: str
     timestamp: int
     enriched_json: Optional[str] = None
@@ -201,42 +201,6 @@ class NewsDatabase:
             news_dict['price_changes'] = json.loads(metadata.get('price_changes'))
 
         return news_dict
-
-    def find_similar_news_by_text(self, enriched_data: Optional[Dict] = None, query_text: Optional[str] = None,
-                                  limit: int = 5, days_back: Optional[int] = None, threshold: Optional[float] = 0.10) -> List[Dict]:
-        if enriched_data:
-            query_embedding = self.create_embedding(enriched_data)
-        elif query_text:
-            query_embedding = self.create_embedding_from_text(query_text)
-        else:
-            print("⚠ Необходимо предоставить enriched_data или query_text.")
-            return []
-
-        # Поиск
-        results = self.collection.query(
-            query_embeddings=[query_embedding.tolist()], # ChromaDB ожидает list of lists
-            n_results=limit,
-            # where=where,
-            include=['metadatas', 'documents', 'distances']
-        )
-
-        similar = []
-        # results['ids'][0] - список ID, results['metadatas'][0] - список метаданных
-        for i, result_url in enumerate(results['ids'][0]):
-            metadata = results['metadatas'][0][i]
-            if results['distances'][0][i] <= threshold:
-                similar.append({
-                    'url': result_url,
-                    'title': metadata.get('title', ''),
-                    'clean_description': results['documents'][0][i],
-                    'sentiment': metadata.get('sentiment', ''),
-                    'published_datetime': metadata.get('published_datetime', ''),
-                    'date_timestamp': metadata.get('timestamp', ''),
-                    'distance': results['distances'][0][i]
-                })
-
-        print(f"Found {len(similar)} similar news.")
-        return similar
         
     def find_similar_news_by_event_new(self, event: PreparedEvent, limit: int = 5, days_back: Optional[int] = None, threshold: Optional[float] = 0.10) -> List[Dict]:
         """Finds similar news based on a PreparedEvent object."""

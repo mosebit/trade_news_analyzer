@@ -64,10 +64,10 @@ def saving_pipeline(
             # новость с более ранней датой уже в БД
             return None
     
-    price_changes = future_price_moex.get_future_price_changes(
-        news_time=new_event.published_date,
-        tickers=new_event.tickers
-    )
+    # price_changes = future_price_moex.get_future_price_changes(
+    #     news_time=new_event.published_date,
+    #     tickers=new_event.tickers
+    # )
     db.save_news_new(new_event)
 
 

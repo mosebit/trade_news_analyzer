@@ -9,8 +9,47 @@ def load_moex_candles(
     ticker: str,
     start_date: str,
     end_date: str,
-    interval: int = 10,
+    interval_minutes: int = None,
+    interval_days: int = None,
 ) -> pd.DataFrame:
+    """
+    Загружает свечи с MOEX за указанный период.
+    
+    Args:
+        ticker: Тикер акции (например, "SBER")
+        start_date: Дата начала в формате "YYYY-MM-DD"
+        end_date: Дата окончания в формате "YYYY-MM-DD"
+        interval_minutes: Интервал в минутах (1, 10, 60 и т.д.)
+        interval_days: Интервал в днях (7, 31 и т.д.)
+        
+    Returns:
+        DataFrame со свечами
+    """
+    # Проверка, что задан ровно один тип интервала
+    if interval_minutes is None and interval_days is None:
+        raise ValueError("Необходимо указать interval_minutes или interval_days")
+    
+    if interval_minutes is not None and interval_days is not None:
+        raise ValueError("Нужно указать только один параметр: interval_minutes или interval_days")
+    
+    # Определяем interval для API MOEX
+    if interval_minutes is not None:
+        interval = interval_minutes
+    else:
+        # MOEX API использует специальные значения для дневных интервалов:
+        # 24 = 1 день, 7 = неделя, 31 = месяц, 4 = квартал
+        if interval_days == 1:
+            interval = 24
+        elif interval_days == 7:
+            interval = 7
+        elif interval_days in [30, 31]:
+            interval = 31
+        elif interval_days in [90, 91]:
+            interval = 4
+        else:
+            # Для других значений используем дневной интервал
+            interval = 24
+    
     all_parts = []
     start = 0
 
@@ -47,66 +86,21 @@ def load_moex_candles(
 
     return df
 
+if __name__ == "__main__":
+    # prices = get_future_price_changes("2025-12-03 12:00:00", ["SBER"])
+    # print(prices)
 
-def get_future_price_changes(
-    news_time: Union[str, pd.Timestamp],
-    tickers: List[str],
-    shifts_hours: List[int] = [1, 3, 12, 24],
-    interval_minutes: int = 10,
-    price_field: str = "close",
-) -> Dict[str, Dict[str, Union[float, None]]]:
-    if isinstance(news_time, str):
-        news_time = pd.to_datetime(news_time)
+    # Интервал 10 минут
+    df = load_moex_candles("SBER", "2025-01-01", "2025-01-31", interval_minutes=10)
+    close_prices = df['close'].tolist()
+    # Интервал 1 час
+    df = load_moex_candles("SBER", "2025-01-01", "2025-01-31", interval_minutes=60)
 
-    shifts = {f"{h}h": pd.Timedelta(hours=h) for h in shifts_hours}
-    max_shift = max(shifts_hours)
+    # Дневные свечи
+    df = load_moex_candles("SBER", "2024-01-01", "2025-01-31", interval_days=1)
 
-    start_date = (news_time - pd.Timedelta(days=5)).date().strftime("%Y-%m-%d")
-    end_date = (news_time + pd.Timedelta(hours=max_shift) + pd.Timedelta(days=1)).date().strftime("%Y-%m-%d")
+    # Недельные свечи
+    df = load_moex_candles("SBER", "2024-01-01", "2025-01-31", interval_days=7)
 
-    result: Dict[str, Dict[str, Union[float, None]]] = {}
-
-    for ticker in tickers:
-        df = load_moex_candles(
-            ticker=ticker,
-            start_date=start_date,
-            end_date=end_date,
-            interval=interval_minutes,
-        )
-
-        ticker_res: Dict[str, Union[float, None]] = {
-            shift_label: None for shift_label in shifts.keys()
-        }
-
-        if df.empty or price_field not in df.columns:
-            result[ticker] = ticker_res
-            continue
-
-        df = df.sort_values("datetime").reset_index(drop=True)
-
-        df_before = df[df["datetime"] <= news_time]
-        if df_before.empty:
-            result[ticker] = ticker_res
-            continue
-
-        base_price = float(df_before.iloc[-1][price_field])
-
-        for shift_label, delta in shifts.items():
-            target_time = news_time + delta
-            row = df[df["datetime"] >= target_time].head(1)
-
-            if row.empty:
-                change = None
-            else:
-                future_price = float(row.iloc[0][price_field])
-                change = future_price - base_price
-
-            ticker_res[shift_label] = change
-
-        result[ticker] = ticker_res
-
-    return result
-
-# example
-# prices = get_future_price_changes("2025-12-03 12:00:00", ["SBER", "YDEX", "POSI", "ROSN"])
-# print(prices)
+    # Месячные свечи
+    df = load_moex_candles("SBER", "2020-01-01", "2025-01-31", interval_days=31)
