@@ -16,7 +16,7 @@ from . import future_price_moex
 
 def find_duplicates(
         new_event: news_database_chroma.PreparedEvent, 
-        db_name: str = './chroma_db_new') -> dict:
+        db_name: str = './chroma_db_new') -> news_database_chroma.PreparedEvent:
     """
     Проверяет, есть ли в базе дубликаты новостей, похожих на new_event.
 
@@ -38,7 +38,7 @@ def find_duplicates(
     # проверка похожих новостей на наличие дубликата
     duplicates_verdict = ai_enrichers_and_filters.find_duplicates(
         new_event.clean_description, 
-        [i.get('clean_description') for i in similar_in_db]
+        [i.clean_description for i in similar_in_db]
         )
 
     if isinstance(duplicates_verdict, dict) and duplicates_verdict.get('index', -1) >= 0:
@@ -57,9 +57,9 @@ def saving_pipeline(
     # сохранена в базе (была получена из другого источника) и дата сохраненной новости
     # является более ранней чем у анализируемой на данный момент
     if similar_in_db:
-        if similar_in_db.get('date_timestamp') > new_event.timestamp:
+        if similar_in_db.timestamp > new_event.timestamp:
             # новость с более поздней датой из БД удаляем, далее будет сохранена более свежая 
-            db.delete_news(similar_in_db.get('url'))
+            db.delete_news(similar_in_db.url)
         else:
             # новость с более ранней датой уже в БД
             return None

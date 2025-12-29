@@ -1,22 +1,104 @@
 from pydantic import BaseModel, Field
-from typing import List, Literal, Optional
+from typing import List, Literal, Optional, Dict
+from dotenv import load_dotenv
 import json
 import requests
-
-# import sys
-# import os
-# sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-# from .llm_client import create_llm_client
-
-from . import llm_client
+import os
 from .news_database_chroma import PreparedEvent
-
-client = llm_client.create_llm_client()
-model = client.get_model_name()
 
 TICKERS = ["SBER", "POSI", "ROSN", "YDEX"]
 
+# Загрузка .env
+# project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+load_dotenv(os.path.join(project_root, '.env'))
+
+YANDEX_IAM_TOKEN = os.getenv('YANDEX_IAM_TOKEN')
+YANDEX_FOLDER_ID = os.getenv('YANDEX_FOLDER_ID')
+YANDEX_MODEL_URI = os.getenv('YANDEX_MODEL_URI', f"gpt://{YANDEX_FOLDER_ID}/yandexgpt/latest")
+
+LLM_CONFIG = {
+    'base_url': 'https://llm.api.cloud.yandex.net/foundationModels/v1',
+    'completion_url': '/completion',
+    'embedding_url': '/textEmbedding',
+    'model_uri': YANDEX_MODEL_URI,
+    'headers': {
+        'Authorization': f'Bearer {YANDEX_IAM_TOKEN}',
+        'Content-Type': 'application/json',
+        'x-folder-id': YANDEX_FOLDER_ID
+    },
+    'default_temperature': 0.3,
+    'default_max_tokens': 2000
+}
+
+
+def yandex_chat_completion(
+    messages: List[Dict[str, str]], 
+    temperature: float = 0.3, 
+    max_tokens: int = 2000,
+    response_format: Optional[str] = None
+) -> Optional[str]:
+    """
+    Прямой вызов YandexGPT API (синхронный)
+    
+    Args:
+        messages: List[Dict] с keys 'role' и 'content'
+        temperature: Температура (0.0 - 1.0)
+        max_tokens: Максимум токенов в ответе
+        response_format: "json_object" для JSON режима
+    
+    Returns:
+        Текст ответа или None при ошибке
+    """
+    
+    # Преобразование сообщений: content → text
+    payload = {
+        "modelUri": LLM_CONFIG['model_uri'],
+        "messages": [
+            {"role": msg["role"], "text": msg["content"]} 
+            for msg in messages
+        ],
+        "completionOptions": {
+            "temperature": temperature,
+            "maxTokens": str(max_tokens),
+            # Добавлена поддержка reasoning (рекомендуется по документации)
+            "reasoningOptions": {
+                "mode": "DISABLED"
+            }
+        }
+    }
+    
+    # ✅ ИСПРАВЛЕНО: jsonObject на верхний уровень payload, НЕ в completionOptions
+    if response_format == "json_object":
+        payload["jsonObject"] = True
+    
+    try:
+        import json
+        print(json.dumps(LLM_CONFIG['headers'], indent=2, ensure_ascii=False))
+
+        response = requests.post(
+            f"{LLM_CONFIG['base_url']}{LLM_CONFIG['completion_url']}",
+            json=payload,
+            headers=LLM_CONFIG['headers'],
+            timeout=60
+        )
+        response.raise_for_status()
+        
+        data = response.json()
+        
+        # ✓ Эта структура правильна согласно документации
+        return data['result']['alternatives'][0]['message']['text']
+        
+    except requests.exceptions.HTTPError as e:
+        print(f"YandexGPT HTTP error {e.response.status_code}: {e.response.text}")
+        return None
+    except KeyError as e:
+        print(f"YandexGPT unexpected response format: {e}")
+        print(f"Response data: {data if 'data' in locals() else 'N/A'}")
+        return None
+    except Exception as e:
+        print(f"YandexGPT API error: {e}")
+        return None
 class EnrichedEventData(BaseModel):
     clean_description: str = Field(
         description="Краткое описание новости без рекламы, воды и лишних деталей"
@@ -93,11 +175,12 @@ def enrich_news_data(event_description: str, tickers_data: dict):
             }
         ]
 
-        response_content = client.chat_completion(
-            messages=messages,
-            temperature=0.3,
-            response_format="json_object"
-        )
+        # response_content = client.chat_completion(
+        #     messages=messages,
+        #     temperature=0.3,
+        #     response_format="json_object"
+        # )
+        response_content = yandex_chat_completion(messages, temperature=0.1, response_format="json_object")
 
         if not response_content:
             print("Ошибка: пустой ответ от LLM")
@@ -201,11 +284,12 @@ def find_duplicates(main_news: str, news_list: List[str]):
             }
         ]
 
-        response_content = client.chat_completion(
-            messages=messages,
-            temperature=0.1,
-            response_format="json_object"
-        )
+        # response_content = client.chat_completion(
+        #     messages=messages,
+        #     temperature=0.1,
+        #     response_format="json_object"
+        # )
+        response_content = yandex_chat_completion(messages, temperature=0.1, response_format="json_object")
 
         if not response_content:
             print("Ошибка: пустой ответ от LLM при проверке дубликатов")
@@ -303,11 +387,12 @@ def find_similar_events_in_history(analyzed_event: PreparedEvent, historical_eve
             }
         ]
 
-        response_content = client.chat_completion(
-            messages=messages,
-            temperature=0.1,
-            response_format="json_object"
-        )
+        # response_content = client.chat_completion(
+        #     messages=messages,
+        #     temperature=0.1,
+        #     response_format="json_object"
+        # )
+        response_content = yandex_chat_completion(messages, temperature=0.1, response_format="json_object")
 
         if not response_content:
             print("Ошибка: пустой ответ от LLM при поиске похожих событий")
@@ -442,11 +527,12 @@ def generate_report(
             }
         ]
 
-        response_content = client.chat_completion(
-            messages=messages,
-            temperature=0.3,
-            response_format="json_object"
-        )
+        # response_content = client.chat_completion(
+        #     messages=messages,
+        #     temperature=0.3,
+        #     response_format="json_object"
+        # )
+        response_content = yandex_chat_completion(messages, temperature=0.1, response_format="json_object")
 
         if not response_content:
             print("Ошибка: пустой ответ от LLM при генерации отчета")

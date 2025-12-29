@@ -38,7 +38,7 @@ class PreparedEvent:
     # embeddings: Optional[list] = None
 
 class NewsDatabase:
-    def __init__(self, path: str = "./chroma_db"):
+    def __init__(self, path: str = "./chroma_db_new"):
         """Инициализация ChromaDB базы данных."""
         self.client = chromadb.PersistentClient(path=path)
         # self.collection = self.client.get_or_create_collection("news")
@@ -174,39 +174,72 @@ class NewsDatabase:
 
         return news_dict
         
-    def find_similar_news_by_event_new(self, event: PreparedEvent, limit: int = 5, days_back: Optional[int] = None, threshold: Optional[float] = 0.10) -> List[Dict]:
-        """Finds similar news based on a PreparedEvent object."""
+    # def find_similar_news_by_event_new(self, event: PreparedEvent, limit: int = 5, days_back: Optional[int] = None, threshold: Optional[float] = 0.10) -> List[Dict]:
+    #     """Finds similar news based on a PreparedEvent object."""
+    #     query_embedding = self.create_embedding_from_text(event.clean_description)
+    #     # query_embedding = self.create_embedding({
+    #     #     'clean_description': event.clean_description,
+    #     #     'sentiment': event.sentiment,
+    #     #     'level_of_potential_impact_on_price': event.impact,
+    #     #     'tickers_of_interest': event.tickers
+    #     # })
+
+    #     # Поиск
+    #     results = self.collection.query(
+    #         query_embeddings=query_embedding,  # ChromaDB ожидает list of lists
+    #         n_results=limit,
+    #         # where=where,
+    #         include=['metadatas', 'documents', 'distances']
+    #     )
+    #     similar = []
+    #     # results['ids'][0] - список ID, results['metadatas'][0] - список метаданных
+    #     for i, result_url in enumerate(results['ids'][0]):
+    #         metadata = results['metadatas'][0][i]
+    #         if results['distances'][0][i] <= threshold:
+    #             similar.append({
+    #                 'url': result_url,
+    #                 'title': metadata.get('title', ''),
+    #                 'clean_description': results['documents'][0][i],
+    #                 'sentiment': metadata.get('sentiment', ''),
+    #                 'published_datetime': metadata.get('published_datetime', ''),
+    #                 'date_timestamp': metadata.get('timestamp', ''),
+    #                 'distance': results['distances'][0][i]
+    #             })
+    #     print(f"Found {len(similar)} similar news.")
+    #     return similar
+
+    def find_similar_news_by_event_new(self, event: PreparedEvent, limit: int = 5, days_back: Optional[int] = None, threshold: Optional[float] = 0.10) -> List[PreparedEvent]:
+        """Finds similar news based on a PreparedEvent object and returns PreparedEvent objects."""
         query_embedding = self.create_embedding_from_text(event.clean_description)
-        # query_embedding = self.create_embedding({
-        #     'clean_description': event.clean_description,
-        #     'sentiment': event.sentiment,
-        #     'level_of_potential_impact_on_price': event.impact,
-        #     'tickers_of_interest': event.tickers
-        # })
 
         # Поиск
         results = self.collection.query(
-            query_embeddings=query_embedding,  # ChromaDB ожидает list of lists
+            query_embeddings=query_embedding,
             n_results=limit,
-            # where=where,
             include=['metadatas', 'documents', 'distances']
         )
-        similar = []
+        
+        similar_events = []
         # results['ids'][0] - список ID, results['metadatas'][0] - список метаданных
         for i, result_url in enumerate(results['ids'][0]):
             metadata = results['metadatas'][0][i]
             if results['distances'][0][i] <= threshold:
-                similar.append({
-                    'url': result_url,
-                    'title': metadata.get('title', ''),
-                    'clean_description': results['documents'][0][i],
-                    'sentiment': metadata.get('sentiment', ''),
-                    'published_datetime': metadata.get('published_datetime', ''),
-                    'date_timestamp': metadata.get('timestamp', ''),
-                    'distance': results['distances'][0][i]
-                })
-        print(f"Found {len(similar)} similar news.")
-        return similar
+                # Создаем объект PreparedEvent из найденных данных
+                similar_event = PreparedEvent(
+                    url=result_url,
+                    title=metadata.get('title', ''),
+                    clean_description=results['documents'][0][i],
+                    original_text=metadata.get('original_text', ''),
+                    tickers=metadata.get('tickers', '').split(',') if metadata.get('tickers') else [],
+                    sentiment=metadata.get('sentiment', 'neutral'),
+                    impact=metadata.get('impact', 'none'),
+                    published_date=metadata.get('published_date', ''),
+                    timestamp=metadata.get('timestamp', 0)
+                )
+                similar_events.append(similar_event)
+                
+        print(f"Found {len(similar_events)} similar news.")
+        return similar_events
 
     def find_similar_news(self, url: str, limit: int = 5,
                          days_back: Optional[int] = None) -> List[Dict]:

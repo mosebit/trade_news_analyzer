@@ -122,13 +122,15 @@ def analyze_page_with_url(url: str):
 
     return prepared_for_saving
 
-def analyze_page_of_news_NEW(ticker: str, page_index: int):
+def analyze_page_of_news_NEW(ticker: str, page_index: int, db_client: news_database_chroma.NewsDatabase):
     raw_posts = fetch_raw_smartlab_post_links(ticker, page_index)
     links_list = get_pretty_post_links(raw_posts.text)
 
     smallest_date_int = 32536799999 # Maximum value of timestamp
 
-    for link in links_list:
+    filtered_links = db_client.filter_unsaved_urls(links_list)
+
+    for link in filtered_links:
         prepared_for_saving = analyze_page_with_url(link)
 
         if prepared_for_saving.timestamp < smallest_date_int:
@@ -140,13 +142,15 @@ def analyze_page_of_news_NEW(ticker: str, page_index: int):
 
 # 2024-01-16T10:30:00
 def prepare_news_until_date(date_iso: str, tickers: list):
+    db_client = news_database_chroma.NewsDatabase()
+
     date_obj = datetime.fromisoformat(date_iso)
     timestamp_of_end = int(date_obj.timestamp())
 
     for ticker in tickers:
         page_index = 1
         while True:
-            current_timestamp = analyze_page_of_news_NEW(ticker, page_index)
+            current_timestamp = analyze_page_of_news_NEW(ticker, page_index, db_client)
             if current_timestamp < timestamp_of_end:
                 break
             page_index += 1
@@ -178,5 +182,5 @@ if __name__ == "__main__":
     # Load environment variables from .env file
     load_dotenv(os.path.join(os.path.dirname(__file__), '.env'))
 
-    prepare_news_until_date("2025-10-01T10:30:00", ["SBER", "POSI", "ROSN", "YDEX"])
+    prepare_news_until_date("2025-10-01T10:30:00", ["POSI", "ROSN", "YDEX"])
     # analyze_page_of_news("POSI", 0)
