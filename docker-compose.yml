@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  historical-data-gatherer:
+    build: .
+    volumes:
+      - ./chroma_db_new:/app/chroma_db_new
+      - ./logs:/app/logs
+    environment:
+      - PYTHONPATH=/app
+    command: python -m historical_data_preparation.parser_smart_lab
+    # To run: docker-compose run --rm historical-data-gatherer
+
+  realtime-evaluator:
+    build: .
+    volumes:
+      - ./chroma_db_new:/app/chroma_db_new
+      - ./logs:/app/logs
+    environment:
+      - PYTHONPATH=/app
+    command: python -m llm_prediction.predictor_main
+    # To run: docker-compose run --rm realtime-evaluator

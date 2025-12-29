@@ -110,6 +110,8 @@ def event_process_chain(
         fundamental_metrics
     )
 
+    saving_pipeline.saving_pipeline(new_event)
+
     if llm_report:
         print("\n" + "="*60)
         print("ФИНАНСОВЫЙ ОТЧЕТ ПО СОБЫТИЮ")
@@ -134,12 +136,15 @@ def event_process_chain(
 
     return llm_report
 
-    
-if __name__ == "__main__":
+def evaluate_new_events(tickers=['SBER', 'POSI'], time_gap_seconds=320000):
     db = news_database_chroma.NewsDatabase(path='./chroma_db_new')
-    new_events = searcher.find_new_news(['SBER', 'POSI'], 320000)
+    new_events = searcher.find_new_news(tickers, time_gap_seconds)
     for event in new_events:
         event_process_chain(event, db)
+    
+if __name__ == "__main__":
+    evaluate_new_events(['SBER', 'POSI'], 160000)
+
 
     # print(json.dumps(get_fundamental_metrics("SBER"), indent=2, ensure_ascii=False))
     # print(get_fundamental_metrics("LOL"))

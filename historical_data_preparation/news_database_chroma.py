@@ -13,11 +13,32 @@ except ImportError:
 import chromadb
 import json
 from typing import List, Dict, Optional, Literal
-from sentence_transformers import SentenceTransformer
+# from sentence_transformers import SentenceTransformer
 from dataclasses import dataclass
+import requests
 
 # Фиксированный список тикеров для статистики
 TICKERS = ["SBER", "POSI", "ROSN", "YDEX"]
+
+def get_embedding(text: str, text_type: str = "doc"):
+    FOLDER_ID = "b1gb4tgg41s74ql3b06b"
+    IAM_TOKEN = "AQVN2LwQNMuyrIEzP1awzoyF5uxkRqH3Vpbbwz3k"
+
+    doc_uri = f"emb://{FOLDER_ID}/text-search-doc/latest"
+    query_uri = f"emb://{FOLDER_ID}/text-search-query/latest"
+    embed_url = "https://llm.api.cloud.yandex.net:443/foundationModels/v1/textEmbedding"
+    headers = {"Content-Type": "application/json", "Authorization": f"Bearer {IAM_TOKEN}", "x-folder-id": f"{FOLDER_ID}"}
+    
+    query_data = {
+        "modelUri": doc_uri if text_type == "doc" else query_uri,
+        "text": text,
+    }
+
+    request_res = requests.post(embed_url, json=query_data, headers=headers)
+
+    # print(request_res.json())
+
+    return request_res.json()["embedding"]
 
 @dataclass
 class PreparedEvent:
@@ -39,84 +60,28 @@ class NewsDatabase:
         self.client = chromadb.PersistentClient(path=path)
         # self.collection = self.client.get_or_create_collection("news")
         self.collection = self.client.get_or_create_collection("news_cosine", metadata={"hnsw:space": "cosine"})
-        self.model = SentenceTransformer('intfloat/multilingual-e5-small')
+        # self.model = SentenceTransformer('intfloat/multilingual-e5-small')
         print(f"ChromaDB initialized: {path}")
 
-    def create_embedding(self, enriched_data: Dict):
-        """Создание эмбеддинга из обогащенных данных."""
-        text = (
-            f"news description: {enriched_data.get('clean_description', '')} "
-            f"sentiment: {enriched_data.get('sentiment', '')} "
-            f"impact: {enriched_data.get('level_of_potential_impact_on_price', '')} "
-            f"tickers: {', '.join(enriched_data.get('tickers_of_interest', []))}"
-        )
-        return self.model.encode(text)
+    # def create_embedding(self, enriched_data: Dict):
+    #     """Создание эмбеддинга из обогащенных данных."""
+    #     text = (
+    #         f"news description: {enriched_data.get('clean_description', '')} "
+    #         f"sentiment: {enriched_data.get('sentiment', '')} "
+    #         f"impact: {enriched_data.get('level_of_potential_impact_on_price', '')} "
+    #         f"tickers: {', '.join(enriched_data.get('tickers_of_interest', []))}"
+    #     )
+    #     return self.model.encode(text)
 
     def create_embedding_from_text(self, text: str):
         """Создание эмбеддинга из произвольного текста."""
-        return self.model.encode(text)
+        # return self.model.encode(text)
+        return get_embedding(text)
 
     # def check_and_save(self, url: str, title: str, original_text: str,
     #               enriched_data: Dict, published_date: str,
     #               published_timestamp: int, other_urls: list = []) -> Optional[str]:
     #     similar_news
-
-
-    def save_news(self, url: str, title: str, original_text: str,
-                  enriched_data: Dict, published_date: str,
-                  published_timestamp: int, other_urls: list = [],
-                  price_changes: Optional[Dict] = None) -> Optional[str]:
-        """Сохранение новости в базу данных."""
-        try:
-            # Проверка дубликата
-            existing = self.collection.get(ids=[url])
-            if existing['ids']:
-                print(f"Warning: News with URL {url} already exists")
-                return url
-
-            # Создание эмбеддинга
-            embedding = self.create_embedding(enriched_data)
-
-            # Подготовка данных
-            tickers = enriched_data.get('tickers_of_interest', [])
-            impact_level = enriched_data.get('level_of_potential_impact_on_price', 'none')
-
-            # Создаем базовые метаданные
-            metadata = {
-                'title': title or '',
-                'original_text': (original_text or '')[:3500],
-                'tickers': ','.join(tickers),
-                'sentiment': enriched_data.get('sentiment', 'neutral'),
-                'impact': impact_level,
-                'published_date': published_date or '',
-                'timestamp': published_timestamp or 0,
-                'enriched_json': json.dumps(enriched_data, ensure_ascii=False)
-            }
-
-            if other_urls:
-                metadata['other_urls'] = json.dumps(other_urls)
-
-            # Добавляем изменения цен, если они есть
-            if price_changes:
-                metadata['price_changes'] = json.dumps(price_changes, ensure_ascii=False)
-
-            # НОВЫЙ ПОДХОД: создаем поля TICKER_impact только для упомянутых тикеров
-            for ticker in tickers:
-                metadata[f'{ticker}_impact'] = impact_level
-
-            self.collection.add(
-                ids=[url],
-                embeddings=[embedding.tolist()],
-                documents=[enriched_data.get('clean_description', '')],
-                metadatas=[metadata]
-            )
-
-            print(f"News saved (url={url}, tickers={tickers})")
-            return url
-
-        except Exception as e:
-            print(f"Error saving news: {e}")
-            return None
         
     def save_news_new(self, event: PreparedEvent, price_changes: Optional[Dict] = None) -> Optional[str]:
         """Сохранение новости в базу данных."""
@@ -128,12 +93,13 @@ class NewsDatabase:
                 return event.url
 
             # Создание эмбеддинга
-            embedding = self.create_embedding({
-                'clean_description': event.clean_description,
-                'sentiment': event.sentiment,
-                'level_of_potential_impact_on_price': event.impact,
-                'tickers_of_interest': event.tickers
-            })
+            embedding = self.create_embedding_from_text(event.clean_description)
+            # embedding = self.create_embedding({
+            #     'clean_description': event.clean_description,
+            #     'sentiment': event.sentiment,
+            #     'level_of_potential_impact_on_price': event.impact,
+            #     'tickers_of_interest': event.tickers
+            # })
 
             # Подготовка данных
             tickers = event.tickers
@@ -161,7 +127,7 @@ class NewsDatabase:
 
             self.collection.add(
                 ids=[event.url],
-                embeddings=[embedding.tolist()],
+                embeddings=embedding,
                 documents=[event.clean_description],
                 metadatas=[metadata]
             )
@@ -204,16 +170,17 @@ class NewsDatabase:
         
     def find_similar_news_by_event_new(self, event: PreparedEvent, limit: int = 5, days_back: Optional[int] = None, threshold: Optional[float] = 0.10) -> List[Dict]:
         """Finds similar news based on a PreparedEvent object."""
-        query_embedding = self.create_embedding({
-            'clean_description': event.clean_description,
-            'sentiment': event.sentiment,
-            'level_of_potential_impact_on_price': event.impact,
-            'tickers_of_interest': event.tickers
-        })
+        query_embedding = self.create_embedding_from_text(event.clean_description)
+        # query_embedding = self.create_embedding({
+        #     'clean_description': event.clean_description,
+        #     'sentiment': event.sentiment,
+        #     'level_of_potential_impact_on_price': event.impact,
+        #     'tickers_of_interest': event.tickers
+        # })
 
         # Поиск
         results = self.collection.query(
-            query_embeddings=[query_embedding.tolist()],  # ChromaDB ожидает list of lists
+            query_embeddings=query_embedding,  # ChromaDB ожидает list of lists
             n_results=limit,
             # where=where,
             include=['metadatas', 'documents', 'distances']
