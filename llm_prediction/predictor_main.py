@@ -9,6 +9,7 @@ from historical_data_preparation import saving_pipeline
 from historical_data_preparation import ai_enrichers_and_filters
 from historical_data_preparation import future_price_moex
 from llm_prediction import searcher
+from telegram_publisher import publish_report
 
 import os
 import json
@@ -110,29 +111,32 @@ def event_process_chain(
         fundamental_metrics
     )
 
+    publish_report(llm_report)
+
     saving_pipeline.saving_pipeline(new_event)
 
-    if llm_report:
-        print("\n" + "="*60)
-        print("ФИНАНСОВЫЙ ОТЧЕТ ПО СОБЫТИЮ")
-        print("="*60)
-        print(f"Событие: {new_event.title}")
-        print(f"Время: {datetime.fromtimestamp(new_event.timestamp)}")
-        print(f"Тикеры: {', '.join(new_event.tickers)}")
-        print(f"Прогноз изменения цены: {llm_report['price_change_prediction']}")
-        print(f"Уровень уверенности: {llm_report['confidence_level']}")
-        print(f"Рекомендация: {llm_report['recommended_action']}")
-        print("\nКраткое описание события:")
-        print(llm_report['event_summary'])
-        print("\nКлючевые факторы:")
-        for factor in llm_report['key_factors']:
-            print(f"  • {factor}")
-        if llm_report['similar_events']:
-            print("\nПохожие события:")
-            for i, event in enumerate(llm_report['similar_events'], 1):
-                print(f"  {i}. {event['description']} ({event['timestamp']})")
-                print(f"     Тикеры: {', '.join(event['tickers'])}")
-        print("="*60)
+
+    # if llm_report:
+    #     print("\n" + "="*60)
+    #     print("ФИНАНСОВЫЙ ОТЧЕТ ПО СОБЫТИЮ")
+    #     print("="*60)
+    #     print(f"Событие: {new_event.title}")
+    #     print(f"Время: {datetime.fromtimestamp(new_event.timestamp)}")
+    #     print(f"Тикеры: {', '.join(new_event.tickers)}")
+    #     print(f"Прогноз изменения цены: {llm_report['price_change_prediction']}")
+    #     print(f"Уровень уверенности: {llm_report['confidence_level']}")
+    #     print(f"Рекомендация: {llm_report['recommended_action']}")
+    #     print("\nКраткое описание события:")
+    #     print(llm_report['event_summary'])
+    #     print("\nКлючевые факторы:")
+    #     for factor in llm_report['key_factors']:
+    #         print(f"  • {factor}")
+    #     if llm_report['similar_events']:
+    #         print("\nПохожие события:")
+    #         for i, event in enumerate(llm_report['similar_events'], 1):
+    #             print(f"  {i}. {event['description']} ({event['timestamp']})")
+    #             print(f"     Тикеры: {', '.join(event['tickers'])}")
+    #     print("="*60)
 
     return llm_report
 
@@ -143,7 +147,7 @@ def evaluate_new_events(tickers=['SBER', 'POSI'], time_gap_seconds=320000):
         event_process_chain(event, db)
     
 if __name__ == "__main__":
-    evaluate_new_events(['SBER', 'POSI'], 160000)
+    evaluate_new_events(["SBER", "POSI", "ROSN", "YDEX"], 320000)
 
 
     # print(json.dumps(get_fundamental_metrics("SBER"), indent=2, ensure_ascii=False))

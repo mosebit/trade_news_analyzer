@@ -1,15 +1,15 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 from typing import List, Literal, Optional, Dict
 from dotenv import load_dotenv
 import json
 import requests
 import os
+import re
 from .news_database_chroma import PreparedEvent
 
 TICKERS = ["SBER", "POSI", "ROSN", "YDEX"]
 
 # Загрузка .env
-# project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 load_dotenv(os.path.join(project_root, '.env'))
 
@@ -32,73 +32,127 @@ LLM_CONFIG = {
 }
 
 
+def extract_json_from_text(text: str) -> str:
+    """
+    Извлекает JSON из текста, убирая markdown разметку и лишний текст.
+
+    Args:
+        text: Текст, который может содержать JSON в markdown блоках или с текстом
+
+    Returns:
+        Очищенная JSON строка
+    """
+    # Убираем markdown блоки ```json ... ```
+    json_block_pattern = r'```(?:json)?\s*({.*?})\s*```'
+    match = re.search(json_block_pattern, text, re.DOTALL)
+    if match:
+        return match.group(1)
+
+    # Ищем JSON объект в тексте
+    json_pattern = r'{[^{}]*(?:{[^{}]*}[^{}]*)*}'
+    match = re.search(json_pattern, text, re.DOTALL)
+    if match:
+        return match.group(0)
+
+    return text
+
+
 def yandex_chat_completion(
-    messages: List[Dict[str, str]], 
-    temperature: float = 0.3, 
+    messages: List[Dict[str, str]],
+    temperature: float = 0.3,
     max_tokens: int = 2000,
-    response_format: Optional[str] = None
+    response_format: Optional[str] = None,
+    retry_on_json_error: bool = True,
+    max_retries: int = 2
 ) -> Optional[str]:
     """
-    Прямой вызов YandexGPT API (синхронный)
-    
+    Прямой вызов YandexGPT API (синхронный) с улучшенной обработкой JSON.
+
     Args:
         messages: List[Dict] с keys 'role' и 'content'
         temperature: Температура (0.0 - 1.0)
         max_tokens: Максимум токенов в ответе
         response_format: "json_object" для JSON режима
-    
+        retry_on_json_error: Повторять запрос при ошибке парсинга JSON
+        max_retries: Максимальное количество попыток
+
     Returns:
         Текст ответа или None при ошибке
     """
-    
-    # Преобразование сообщений: content → text
     payload = {
         "modelUri": LLM_CONFIG['model_uri'],
         "messages": [
-            {"role": msg["role"], "text": msg["content"]} 
+            {"role": msg["role"], "text": msg["content"]}
             for msg in messages
         ],
         "completionOptions": {
             "temperature": temperature,
-            "maxTokens": str(max_tokens),
-            # Добавлена поддержка reasoning (рекомендуется по документации)
-            "reasoningOptions": {
-                "mode": "DISABLED"
-            }
+            "maxTokens": str(max_tokens)
         }
     }
-    
-    # ✅ ИСПРАВЛЕНО: jsonObject на верхний уровень payload, НЕ в completionOptions
+
+    # ✅ ПРАВИЛЬНОЕ размещение jsonObject согласно документации Yandex Cloud
+    # jsonObject должен быть на верхнем уровне payload
     if response_format == "json_object":
         payload["jsonObject"] = True
-    
-    try:
-        import json
-        print(json.dumps(LLM_CONFIG['headers'], indent=2, ensure_ascii=False))
 
-        response = requests.post(
-            f"{LLM_CONFIG['base_url']}{LLM_CONFIG['completion_url']}",
-            json=payload,
-            headers=LLM_CONFIG['headers'],
-            timeout=60
-        )
-        response.raise_for_status()
-        
-        data = response.json()
-        
-        # ✓ Эта структура правильна согласно документации
-        return data['result']['alternatives'][0]['message']['text']
-        
-    except requests.exceptions.HTTPError as e:
-        print(f"YandexGPT HTTP error {e.response.status_code}: {e.response.text}")
-        return None
-    except KeyError as e:
-        print(f"YandexGPT unexpected response format: {e}")
-        print(f"Response data: {data if 'data' in locals() else 'N/A'}")
-        return None
-    except Exception as e:
-        print(f"YandexGPT API error: {e}")
-        return None
+    for attempt in range(max_retries):
+        try:
+            response = requests.post(
+                f"{LLM_CONFIG['base_url']}{LLM_CONFIG['completion_url']}",
+                json=payload,
+                headers=LLM_CONFIG['headers'],
+                timeout=60
+            )
+
+            response.raise_for_status()
+            data = response.json()
+
+            # Извлекаем текст ответа
+            result_text = data['result']['alternatives'][0]['message']['text']
+
+            # Если требуется JSON, валидируем и очищаем ответ
+            if response_format == "json_object":
+                try:
+                    # Пытаемся извлечь чистый JSON
+                    cleaned_json = extract_json_from_text(result_text)
+                    # Проверяем валидность JSON
+                    json.loads(cleaned_json)
+                    return cleaned_json
+                except json.JSONDecodeError as je:
+                    print(f"Попытка {attempt + 1}/{max_retries}: Ошибка парсинга JSON: {je}")
+                    print(f"Исходный ответ: {result_text[:500]}...")
+
+                    if attempt < max_retries - 1 and retry_on_json_error:
+                        # Добавляем дополнительную инструкцию в промпт
+                        messages.append({
+                            "role": "assistant",
+                            "content": result_text
+                        })
+                        messages.append({
+                            "role": "user",
+                            "content": "Ответ не является валидным JSON. Верни ТОЛЬКО чистый JSON объект без markdown разметки, без дополнительного текста и комментариев."
+                        })
+                        continue
+                    else:
+                        return None
+
+            return result_text
+
+        except requests.exceptions.HTTPError as e:
+            print(f"YandexGPT HTTP error {e.response.status_code}: {e.response.text}")
+            return None
+        except KeyError as e:
+            print(f"YandexGPT unexpected response format: {e}")
+            print(f"Response data: {data if 'data' in locals() else 'N/A'}")
+            return None
+        except Exception as e:
+            print(f"YandexGPT API error: {e}")
+            return None
+
+    return None
+
+
 class EnrichedEventData(BaseModel):
     clean_description: str = Field(
         description="Краткое описание новости без рекламы, воды и лишних деталей"
@@ -114,6 +168,7 @@ class EnrichedEventData(BaseModel):
         description="Потенциальное влияние новости на цену актива"
     )
 
+
 def enrich_news_data(event_description: str, tickers_data: dict):
     """
     Обогащает данные о новости с помощью LLM анализа.
@@ -121,53 +176,50 @@ def enrich_news_data(event_description: str, tickers_data: dict):
     Args:
         event_description: Текст новости для анализа
         tickers_data: Словарь с данными о тикерах (описание активов, текущие цены и т.д.)
-        model: Название модели LLM для использования
 
     Returns:
         dict: Обогащенные данные о новости или None в случае ошибки
     """
-
-    # Формируем контекст о тикерах для более точного анализа
     tickers_context = "\n".join([
         f"- {ticker}: {data.get('description', 'N/A')}"
         for ticker, data in tickers_data.items()
     ])
 
-    # Улучшенный промпт на русском языке для более точного анализа
-    prompt = f"""
-        Проанализируй следующую новость и предоставь структурированный ответ.
+    # ✅ УЛУЧШЕННЫЙ промпт с явным требованием JSON без markdown
+    prompt = f"""Проанализируй следующую новость и предоставь структурированный ответ.
 
-        НОВОСТЬ:
-        {event_description}
+НОВОСТЬ:
+{event_description}
 
-        ДОСТУПНЫЕ АКТИВЫ ДЛЯ АНАЛИЗА:
-        {tickers_context}
+ДОСТУПНЫЕ АКТИВЫ ДЛЯ АНАЛИЗА:
+{tickers_context}
 
-        ЗАДАЧИ:
-        1. Создай краткое описание новости (clean_description) - убери рекламу, воду, лишние детали. Оставь только суть, НО ничего полезного НЕ удаляй!
-        2. Определи общий тон новости (sentiment): positive (позитивная), negative (негативная) или neutral (нейтральная).
-        3. Определи, к каким тикерам из списка [{', '.join(TICKERS)}] относится эта новость (tickers_of_interest). Список может быть пустым, если новость не касается ни одного из активов.
-        4. Оцени потенциальное влияние новости на цену активов (level_of_potential_impact_on_price):
-        - none: новость не влияет на цену
-        - low: минимальное влияние (обычные события)
-        - medium: заметное влияние (важные корпоративные события)
-        - high: сильное влияние (критические события, смена руководства, крупные сделки)
+ЗАДАЧИ:
+1. Создай краткое описание новости (clean_description) - убери рекламу, воду, лишние детали. Оставь только суть, НО ничего полезного НЕ удаляй!
+2. Определи общий тон новости (sentiment): positive (позитивная), negative (негативная) или neutral (нейтральная).
+3. Определи, к каким тикерам из списка [{', '.join(TICKERS)}] относится эта новость (tickers_of_interest). Список может быть пустым, если новость не касается ни одного из активов.
+4. Оцени потенциальное влияние новости на цену активов (level_of_potential_impact_on_price):
+   - none: новость не влияет на цену
+   - low: минимальное влияние (обычные события)
+   - medium: заметное влияние (важные корпоративные события)
+   - high: сильное влияние (критические события, смена руководства, крупные сделки)
 
-        Верни ответ строго в JSON формате со следующей структурой:
-        {{
-        "clean_description": "краткое описание новости",
-        "sentiment": "positive/negative/neutral",
-        "tickers_of_interest": ["TICKER1", "TICKER2"],
-        "level_of_potential_impact_on_price": "none/low/medium/high"
-        }}
-    """
+ВАЖНО: Верни ТОЛЬКО валидный JSON объект без markdown разметки (```json), без пояснений и комментариев.
+
+Структура JSON:
+{{
+  "clean_description": "краткое описание новости",
+  "sentiment": "positive/negative/neutral",
+  "tickers_of_interest": ["TICKER1", "TICKER2"],
+  "level_of_potential_impact_on_price": "none/low/medium/high"
+}}
+"""
 
     try:
-        # Вызов LLM с запросом структурированного ответа
         messages = [
             {
                 "role": "system",
-                "content": "Ты эксперт финансовый аналитик, специализирующийся на российском фондовом рынке. Ты анализируешь новости и определяешь их влияние на котировки акций."
+                "content": "Ты эксперт финансовый аналитик, специализирующийся на российском фондовом рынке. Ты анализируешь новости и определяешь их влияние на котировки акций. Ты ВСЕГДА отвечаешь чистым JSON без дополнительного текста."
             },
             {
                 "role": "user",
@@ -175,22 +227,28 @@ def enrich_news_data(event_description: str, tickers_data: dict):
             }
         ]
 
-        # response_content = client.chat_completion(
-        #     messages=messages,
-        #     temperature=0.3,
-        #     response_format="json_object"
-        # )
-        response_content = yandex_chat_completion(messages, temperature=0.1, response_format="json_object")
+        response_content = yandex_chat_completion(
+            messages, 
+            temperature=0.1, 
+            response_format="json_object",
+            retry_on_json_error=True
+        )
 
         if not response_content:
             print("Ошибка: пустой ответ от LLM")
             return None
 
-        # Парсинг ответа с использованием Pydantic модели
-        result = EnrichedEventData.model_validate_json(response_content)
+        # Дополнительная очистка JSON
+        cleaned_json = extract_json_from_text(response_content)
 
+        # Парсинг ответа с использованием Pydantic модели
+        result = EnrichedEventData.model_validate_json(cleaned_json)
         return result.model_dump()
 
+    except ValidationError as e:
+        print(f"Ошибка валидации Pydantic модели: {e}")
+        print(f"Ответ LLM: {response_content}")
+        return None
     except json.JSONDecodeError as e:
         print(f"Ошибка декодирования JSON ответа от LLM: {e}")
         print(f"Ответ LLM: {response_content}")
@@ -198,6 +256,7 @@ def enrich_news_data(event_description: str, tickers_data: dict):
     except Exception as e:
         print(f"Ошибка при обработке ответа LLM: {e}")
         return None
+
 
 class DuplicateCheckResult(BaseModel):
     is_duplicate: bool = Field(
@@ -211,6 +270,7 @@ class DuplicateCheckResult(BaseModel):
         description="Краткое объяснение решения"
     )
 
+
 def find_duplicates(main_news: str, news_list: List[str]):
     """
     Проверяет, является ли основная новость дубликатом одной из новостей в списке.
@@ -223,15 +283,12 @@ def find_duplicates(main_news: str, news_list: List[str]):
         dict: {"index": int, "news": str} - найденный дубликат
         или None если дубликат не найден
     """
-
-    # Формируем список новостей с индексами для промпта
     indexed_news = "\n".join([
         f"[{i}] {news}"
         for i, news in enumerate(news_list)
     ])
 
-    prompt = f"""
-Определи, является ли ПРОВЕРЯЕМАЯ НОВОСТЬ дубликатом одной из новостей в СПИСКЕ НОВОСТЕЙ.
+    prompt = f"""Определи, является ли ПРОВЕРЯЕМАЯ НОВОСТЬ дубликатом одной из новостей в СПИСКЕ НОВОСТЕЙ.
 
 ПРОВЕРЯЕМАЯ НОВОСТЬ:
 {main_news}
@@ -244,39 +301,30 @@ def find_duplicates(main_news: str, news_list: List[str]):
 - События происходят в ОДИН И ТОТ ЖЕ момент времени (или очень близко)
 - Суть события одинакова, даже если формулировки отличаются
 
-ПРИМЕРЫ ДУБЛИКАТОВ:
-- "Сбербанк объявил прибыль 400 млрд за Q3 2024" и "Сбер показал рекордную прибыль в третьем квартале - 400 миллиардов"
-- "Роснефть подписала контракт с Китаем на 5 млрд долларов" и "Роснефть заключила сделку с китайской стороной на $5B"
-
-ПРИМЕРЫ НЕ ДУБЛИКАТОВ:
-- "Сбербанк объявил прибыль за Q3" и "Сбербанк объявил прибыль за Q2" (разные периоды)
-- "Яндекс запустил новый сервис" и "Яндекс обновил существующий сервис" (разные события)
-- "Роснефть повысила дивиденды" и "Роснефть сменила CEO" (разные события одной компании)
-
 ЗАДАЧА:
 Проверь, есть ли в списке новостей дубликат проверяемой новости.
 Если дубликат найден - укажи его индекс (число в квадратных скобках).
 Если несколько похожих - выбери НАИБОЛЕЕ похожую.
 
-ФОРМАТ ОТВЕТА:
-Верни ответ строго в JSON формате со следующей структурой:
+ВАЖНО: Верни ТОЛЬКО валидный JSON объект без markdown разметки, без пояснений.
+
+Структура JSON:
 {{
-    "is_duplicate": true/false,
-    "duplicate_index": число или null (индекс новости из списка, если дубликат найден),
-    "reasoning": "краткое объяснение решения"
+  "is_duplicate": true/false,
+  "duplicate_index": число или null,
+  "reasoning": "краткое объяснение решения"
 }}
 
-ВАЖНО:
+ПРИМЕЧАНИЕ:
 - duplicate_index должен быть null, если is_duplicate = false
 - duplicate_index должен быть числом от 0 до {len(news_list)-1}, если is_duplicate = true
-- reasoning должен кратко объяснять, почему новости являются или не являются дубликатами
 """
 
     try:
         messages = [
             {
                 "role": "system",
-                "content": "Ты эксперт по анализу новостного контента. Твоя задача - точно определять, описывают ли две новости одно и то же событие."
+                "content": "Ты эксперт по анализу новостного контента. Твоя задача - точно определять, описывают ли две новости одно и то же событие. Ты ВСЕГДА отвечаешь чистым JSON без дополнительного текста."
             },
             {
                 "role": "user",
@@ -284,19 +332,22 @@ def find_duplicates(main_news: str, news_list: List[str]):
             }
         ]
 
-        # response_content = client.chat_completion(
-        #     messages=messages,
-        #     temperature=0.1,
-        #     response_format="json_object"
-        # )
-        response_content = yandex_chat_completion(messages, temperature=0.1, response_format="json_object")
+        response_content = yandex_chat_completion(
+            messages, 
+            temperature=0.1, 
+            response_format="json_object",
+            retry_on_json_error=True
+        )
 
         if not response_content:
             print("Ошибка: пустой ответ от LLM при проверке дубликатов")
             return None
 
+        # Дополнительная очистка JSON
+        cleaned_json = extract_json_from_text(response_content)
+
         # Парсинг ответа
-        result = DuplicateCheckResult.model_validate_json(response_content)
+        result = DuplicateCheckResult.model_validate_json(cleaned_json)
 
         # Если найден дубликат, возвращаем его
         if result.is_duplicate and result.duplicate_index is not None:
@@ -311,6 +362,10 @@ def find_duplicates(main_news: str, news_list: List[str]):
 
         return None
 
+    except ValidationError as e:
+        print(f"Ошибка валидации Pydantic модели: {e}")
+        print(f"Ответ LLM: {response_content}")
+        return None
     except json.JSONDecodeError as e:
         print(f"Ошибка декодирования JSON ответа от LLM: {e}")
         print(f"Ответ LLM: {response_content}")
@@ -318,27 +373,35 @@ def find_duplicates(main_news: str, news_list: List[str]):
     except Exception as e:
         print(f"Ошибка при проверке дубликатов: {e}")
         return None
-    
+
+
+class SimilarEventsResult(BaseModel):
+    similar_indices: List[int] = Field(
+        default_factory=list,
+        description="Список индексов похожих событий"
+    )
+    reasoning: str = Field(
+        description="Краткое объяснение выбора"
+    )
+
+
 def find_similar_events_in_history(analyzed_event: PreparedEvent, historical_events: List[PreparedEvent]) -> List[int]:
     """
     Находит похожие события в истории по отношению к анализируемому событию.
-    
+
     Args:
         analyzed_event: Анализируемое событие (PreparedEvent)
         historical_events: Список исторических событий для сравнения
-        
+
     Returns:
         Список индексов событий из historical_events, которые похожи на analyzed_event
     """
-    
-    # Формируем список событий с индексами для промпта
     indexed_events = "\n".join([
         f"[{i}] {event.clean_description}"
         for i, event in enumerate(historical_events)
     ])
-    
-    prompt = f"""
-Проанализируй следующее событие и определи, какие из исторических событий из СПИСКА СОБЫТИЙ являются похожими.
+
+    prompt = f"""Проанализируй следующее событие и определи, какие из исторических событий из СПИСКА СОБЫТИЙ являются похожими.
 
 АНАЛИЗИРУЕМОЕ СОБЫТИЕ:
 {analyzed_event.clean_description}
@@ -352,25 +415,19 @@ def find_similar_events_in_history(analyzed_event: PreparedEvent, historical_eve
 - Суть события одинакова, даже если формулировки отличаются
 - События имеют схожее влияние на рынок
 
-ПРИМЕРЫ ПОХОЖИХ СОБЫТИЙ:
-- "Сбербанк объявил прибыль 400 млрд за Q3 2024" и "Сбер показал рекордную прибыль в третьем квартале - 400 миллиардов"
-- "Роснефть подписала контракт с Китаем на 5 млрд долларов" и "Роснефть заключила сделку с китайской стороной на $5B"
-
-ПРИМЕРЫ НЕ ПОХОЖИХ СОБЫТИЙ:
-- "Сбербанк объявил прибыль за Q3" и "Сбербанк объявил прибыль за Q2" (разные периоды)
-- "Яндекс запустил новый сервис" и "Яндекс обновил существующий сервис" (разные события)
-- "Роснефть повысила дивиденды" и "Роснефть сменила CEO" (разные события одной компании)
-
 ЗАДАЧА:
 Определи, какие из исторических событий похожи на анализируемое событие.
-Верни ответ строго в JSON формате со следующей структурой:
+
+ВАЖНО: Верни ТОЛЬКО валидный JSON объект без markdown разметки, без пояснений.
+
+Структура JSON:
 {{
-    "similar_indices": [индексы похожих событий],
-    "reasoning": "краткое объяснение выбора"
+  "similar_indices": [индексы похожих событий],
+  "reasoning": "краткое объяснение выбора"
 }}
 
-ВАЖНО:
-- Возвращай только индексы из СПИСКА СОБЫТИЙ (от 0 до {len(historical_events)-1})
+ПРИМЕЧАНИЕ:
+- Возвращай только индексы от 0 до {len(historical_events)-1}
 - Если похожих событий нет - верни пустой массив []
 - Индексы должны быть числами, а не строками
 """
@@ -379,7 +436,7 @@ def find_similar_events_in_history(analyzed_event: PreparedEvent, historical_eve
         messages = [
             {
                 "role": "system",
-                "content": "Ты эксперт по анализу финансовых событий. Твоя задача - точно определять, описывают ли два события одно и то же или очень похожее событие."
+                "content": "Ты эксперт по анализу финансовых событий. Твоя задача - точно определять, описывают ли два события одно и то же или очень похожее событие. Ты ВСЕГДА отвечаешь чистым JSON без дополнительного текста."
             },
             {
                 "role": "user",
@@ -387,25 +444,35 @@ def find_similar_events_in_history(analyzed_event: PreparedEvent, historical_eve
             }
         ]
 
-        # response_content = client.chat_completion(
-        #     messages=messages,
-        #     temperature=0.1,
-        #     response_format="json_object"
-        # )
-        response_content = yandex_chat_completion(messages, temperature=0.1, response_format="json_object")
+        response_content = yandex_chat_completion(
+            messages, 
+            temperature=0.1, 
+            response_format="json_object",
+            retry_on_json_error=True
+        )
 
         if not response_content:
             print("Ошибка: пустой ответ от LLM при поиске похожих событий")
             return []
 
-        # Парсинг ответа
-        result = DuplicateCheckResult.model_validate_json(response_content)
-        
-        # Преобразуем индексы в целые числа
-        similar_indices = [int(idx) for idx in result.duplicate_index] if isinstance(result.duplicate_index, list) else []
-        
-        return similar_indices
+        # Дополнительная очистка JSON
+        cleaned_json = extract_json_from_text(response_content)
 
+        # Парсинг ответа
+        result = SimilarEventsResult.model_validate_json(cleaned_json)
+
+        # Валидация индексов
+        valid_indices = [
+            int(idx) for idx in result.similar_indices 
+            if isinstance(idx, int) and 0 <= idx < len(historical_events)
+        ]
+
+        return valid_indices
+
+    except ValidationError as e:
+        print(f"Ошибка валидации Pydantic модели: {e}")
+        print(f"Ответ LLM: {response_content}")
+        return []
     except json.JSONDecodeError as e:
         print(f"Ошибка декодирования JSON ответа от LLM: {e}")
         print(f"Ответ LLM: {response_content}")
@@ -413,6 +480,7 @@ def find_similar_events_in_history(analyzed_event: PreparedEvent, historical_eve
     except Exception as e:
         print(f"Ошибка при поиске похожих событий: {e}")
         return []
+
 
 class ReportData(BaseModel):
     price_change_prediction: Literal["up", "down", "stable"] = Field(
@@ -436,6 +504,7 @@ class ReportData(BaseModel):
         description="Рекомендуемое торговое действие"
     )
 
+
 def generate_report(
     analyzed_event: PreparedEvent,
     similar_events_and_prices: Optional[List[dict]] = None,
@@ -443,44 +512,37 @@ def generate_report(
 ) -> Optional[dict]:
     """
     Генерирует структурированный отчет по событию и сопутствующим данным.
-    
+
     Args:
         analyzed_event: Анализируемое событие
         similar_events_and_prices: Список похожих событий с ценами
         fundamental_metrics: Фундаментальные метрики по тикерам
-        
+
     Returns:
         dict: Структурированный отчет или None в случае ошибки
     """
-    
-    # Подготовка контекста для промпта
     context_parts = []
-    
-    # Основное событие
     context_parts.append(f"ОСНОВНОЕ СОБЫТИЕ:\n{analyzed_event.clean_description}")
-    
-    # Похожие события
+
     if similar_events_and_prices and len(similar_events_and_prices) > 0:
         similar_context = "\n".join([
             f"Событие {i+1}: {event['event_data']['title']} ({event['event_data']['timestamp']})\n"
             f"Описание: {event['event_data']['clean_description']}\n"
             f"Тикеры: {', '.join(event['event_data']['tickers'])}"
-            for i, event in enumerate(similar_events_and_prices[:3])  # Ограничиваем до 3 событий
+            for i, event in enumerate(similar_events_and_prices[:3])
         ])
         context_parts.append(f"ПОХОЖИЕ СОБЫТИЯ:\n{similar_context}")
-    
-    # Фундаментальные метрики
+
     if fundamental_metrics:
         metrics_context = "\n".join([
             f"{ticker}: {metrics.get('company', {}).get('name', 'N/A')} - P/E: {metrics.get('financial_ratios', {}).get('pe_ratio', 'N/A')}"
             for ticker, metrics in fundamental_metrics.items()
         ])
         context_parts.append(f"ФУНДАМЕНТАЛЬНЫЕ МЕТРИКИ:\n{metrics_context}")
-    
+
     full_context = "\n\n".join(context_parts)
-    
-    prompt = f"""
-Проанализируй следующие данные и создай структурированный отчет по событию.
+
+    prompt = f"""Проанализируй следующие данные и создай структурированный отчет по событию.
 
 КОНТЕКСТ СОБЫТИЯ:
 {full_context}
@@ -493,33 +555,34 @@ def generate_report(
 5. Определи уровень уверенности в прогнозе (confidence_level): low (низкий), medium (средний), high (высокий)
 6. Предложи рекомендуемое торговое действие (recommended_action): buy (покупать), sell (продавать), hold (удерживать), monitor (мониторить)
 
-ВЕРНИ ОТВЕТ СТРОГО В JSON ФОРМАТЕ СО СЛЕДУЮЩЕЙ СТРУКТУРОЙ:
+ВАЖНО: Верни ТОЛЬКО валидный JSON объект без markdown разметки, без пояснений.
+
+Структура JSON:
 {{
-    "price_change_prediction": "up/down/stable",
-    "event_summary": "краткое описание события",
-    "similar_events": [
-        {{
-            "timestamp": "время события",
-            "description": "описание события",
-            "tickers": ["тикеры"]
-        }}
-    ],
-    "key_factors": ["фактор 1", "фактор 2"],
-    "confidence_level": "low/medium/high",
-    "recommended_action": "buy/sell/hold/monitor"
+  "price_change_prediction": "up/down/stable",
+  "event_summary": "краткое описание события",
+  "similar_events": [
+    {{
+      "timestamp": "время события",
+      "description": "описание события",
+      "tickers": ["тикеры"]
+    }}
+  ],
+  "key_factors": ["фактор 1", "фактор 2"],
+  "confidence_level": "low/medium/high",
+  "recommended_action": "buy/sell/hold/monitor"
 }}
 
-ВАЖНО:
+ПРИМЕЧАНИЕ:
 - Если похожих событий нет, оставь пустой массив similar_events
-- Если фундаментальные метрики не предоставлены, не включай их в анализ
-- Все поля обязательны, даже если пустые
+- Все поля обязательны
 """
 
     try:
         messages = [
             {
                 "role": "system",
-                "content": "Ты эксперт по анализу финансовых событий и прогнозированию цен. Ты создаешь структурированные отчеты на основе новостных данных и исторических аналогов."
+                "content": "Ты эксперт по анализу финансовых событий и прогнозированию цен. Ты создаешь структурированные отчеты на основе новостных данных и исторических аналогов. Ты ВСЕГДА отвечаешь чистым JSON без дополнительного текста."
             },
             {
                 "role": "user",
@@ -527,34 +590,39 @@ def generate_report(
             }
         ]
 
-        # response_content = client.chat_completion(
-        #     messages=messages,
-        #     temperature=0.3,
-        #     response_format="json_object"
-        # )
-        response_content = yandex_chat_completion(messages, temperature=0.1, response_format="json_object")
+        response_content = yandex_chat_completion(
+            messages, 
+            temperature=0.1, 
+            response_format="json_object",
+            retry_on_json_error=True
+        )
 
         if not response_content:
             print("Ошибка: пустой ответ от LLM при генерации отчета")
             return None
 
-        # Парсинг ответа с использованием Pydantic модели
-        result = ReportData.model_validate_json(response_content)
+        # Дополнительная очистка JSON
+        cleaned_json = extract_json_from_text(response_content)
 
+        # Парсинг ответа с использованием Pydantic модели
+        result = ReportData.model_validate_json(cleaned_json)
         return result.model_dump()
 
+    except ValidationError as e:
+        print(f"Ошибка валидации Pydantic модели: {e}")
+        print(f"Ответ LLM: {response_content}")
+        return None
     except json.JSONDecodeError as e:
         print(f"Ошибка декодирования JSON ответа от LLM: {e}")
         print(f"Ответ LLM: {response_content}")
         return None
     except Exception as e:
-        print(f"Ошибка при обработке ответа LLM: {e}")
+        print(f"Ошибка при генерации отчета: {e}")
         return None
 
 
 # Пример использования
 if __name__ == "__main__":
-    # Пример данных о тикерах
     example_tickers_data = {
         "SBER": {
             "description": "Сбербанк - крупнейший банк России",
@@ -574,7 +642,6 @@ if __name__ == "__main__":
         }
     }
 
-    # Пример новости
     example_news = """
     Сбербанк объявил о рекордной прибыли за третий квартал 2024 года.
     Чистая прибыль банка составила 400 млрд рублей, что на 25% выше показателей

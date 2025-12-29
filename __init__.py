@@ -5,3 +5,4 @@ from .historical_data_preparation import (
     future_price_moex
 )
 from .llm_prediction import searcher
+from telegram_publisher import publish_report
