@@ -16,29 +16,12 @@ from typing import List, Dict, Optional, Literal
 # from sentence_transformers import SentenceTransformer
 from dataclasses import dataclass
 import requests
+import sys
+import os
+from dotenv import load_dotenv
 
 # Фиксированный список тикеров для статистики
 TICKERS = ["SBER", "POSI", "ROSN", "YDEX"]
-
-def get_embedding(text: str, text_type: str = "doc"):
-    FOLDER_ID = "b1gb4tgg41s74ql3b06b"
-    IAM_TOKEN = "AQVN2LwQNMuyrIEzP1awzoyF5uxkRqH3Vpbbwz3k"
-
-    doc_uri = f"emb://{FOLDER_ID}/text-search-doc/latest"
-    query_uri = f"emb://{FOLDER_ID}/text-search-query/latest"
-    embed_url = "https://llm.api.cloud.yandex.net:443/foundationModels/v1/textEmbedding"
-    headers = {"Content-Type": "application/json", "Authorization": f"Bearer {IAM_TOKEN}", "x-folder-id": f"{FOLDER_ID}"}
-    
-    query_data = {
-        "modelUri": doc_uri if text_type == "doc" else query_uri,
-        "text": text,
-    }
-
-    request_res = requests.post(embed_url, json=query_data, headers=headers)
-
-    # print(request_res.json())
-
-    return request_res.json()["embedding"]
 
 @dataclass
 class PreparedEvent:
@@ -63,6 +46,12 @@ class NewsDatabase:
         # self.model = SentenceTransformer('intfloat/multilingual-e5-small')
         print(f"ChromaDB initialized: {path}")
 
+        # Load .env from project root
+        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        load_dotenv(os.path.join(project_root, '.env'))
+        self.IAM_TOKEN = os.getenv("YANDEX_IAM_TOKEN")
+        self.FOLDER_ID = os.getenv("YANDEX_FOLDER_ID")
+
     # def create_embedding(self, enriched_data: Dict):
     #     """Создание эмбеддинга из обогащенных данных."""
     #     text = (
@@ -73,10 +62,27 @@ class NewsDatabase:
     #     )
     #     return self.model.encode(text)
 
+    def get_embedding(self, text: str, text_type: str = "doc"):
+        doc_uri = f"emb://{self.FOLDER_ID}/text-search-doc/latest"
+        query_uri = f"emb://{self.FOLDER_ID}/text-search-query/latest"
+        embed_url = "https://llm.api.cloud.yandex.net:443/foundationModels/v1/textEmbedding"
+        headers = {"Content-Type": "application/json", "Authorization": f"Bearer {self.IAM_TOKEN}", "x-folder-id": f"{self.FOLDER_ID}"}
+        
+        query_data = {
+            "modelUri": doc_uri if text_type == "doc" else query_uri,
+            "text": text,
+        }
+
+        request_res = requests.post(embed_url, json=query_data, headers=headers)
+
+        # print(request_res.json())
+
+        return request_res.json()["embedding"]
+
     def create_embedding_from_text(self, text: str):
         """Создание эмбеддинга из произвольного текста."""
         # return self.model.encode(text)
-        return get_embedding(text)
+        return self.get_embedding(text)
 
     # def check_and_save(self, url: str, title: str, original_text: str,
     #               enriched_data: Dict, published_date: str,
