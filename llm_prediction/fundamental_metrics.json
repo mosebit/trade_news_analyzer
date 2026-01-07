@@ -1,0 +1,769 @@
+[
+  {
+    "company": {
+      "ticker": "SBER",
+      "name": "Сбербанк России",
+      "sector": "Финансы (Банковский сектор)",
+      "exchange": "MOEX"
+    },
+    "price": {
+      "current": 302.00,
+      "currency": "RUB",
+      "date": "2025-12-26"
+    },
+    "market_cap": {
+      "value": 6390,
+      "unit": "млрд RUB"
+    },
+    "valuation_multiples": {
+      "P_E": {
+        "value": 4.13,
+        "average_5y": 4.9,
+        "interpretation": "Недооценена относительно исторического среднего"
+      },
+      "P_B": {
+        "value": 0.87,
+        "average_5y": 0.92,
+        "interpretation": "Торгуется ниже балансовой стоимости"
+      },
+      "P_S": {
+        "value": 0.91,
+        "interpretation": "Низкий коэффициент цена-к-продажам"
+      }
+    },
+    "profitability": {
+      "ROE": {
+        "value": 23.7,
+        "unit": "%",
+        "average_5y": 20.7,
+        "interpretation": "Высокая рентабельность собственного капитала"
+      },
+      "ROA": {
+        "value": null,
+        "unit": "%"
+      },
+      "profit_margin": {
+        "value": 48.54,
+        "unit": "%"
+      }
+    },
+    "per_share_metrics": {
+      "EPS": {
+        "value": 72.38,
+        "unit": "RUB",
+        "growth_yoy": 13,
+        "period": "TTM"
+      },
+      "dividend_per_share": {
+        "value": 18.70,
+        "unit": "RUB",
+        "yield": 14.03,
+        "unit_yield": "%"
+      },
+      "book_value_per_share": {
+        "value": 349.49,
+        "unit": "RUB"
+      }
+    },
+    "financial_position": {
+      "revenue": {
+        "value": 8860,
+        "unit": "млрд RUB",
+        "period": "FY 2024"
+      },
+      "net_income": {
+        "value": 1570,
+        "unit": "млрд RUB",
+        "period": "FY 2024",
+        "ltm": 1977
+      },
+      "net_income_ltm": {
+        "value": 1977,
+        "unit": "млрд RUB"
+      },
+      "total_assets": {
+        "value": 64474,
+        "unit": "млрд RUB"
+      },
+      "cash": {
+        "value": 4990,
+        "unit": "млрд RUB"
+      },
+      "total_debt": {
+        "value": 3850,
+        "unit": "млрд RUB"
+      },
+      "net_cash": {
+        "value": 1130,
+        "unit": "млрд RUB"
+      }
+    },
+    "growth_metrics": {
+      "revenue_growth_yoy": {
+        "value": 10,
+        "unit": "%"
+      },
+      "earnings_growth_yoy": {
+        "value": 13,
+        "unit": "%"
+      },
+      "credit_portfolio_growth": {
+        "value": 10,
+        "unit": "%"
+      }
+    },
+    "financial_stability": {
+      "credit_portfolio": {
+        "value": 42501,
+        "unit": "млрд RUB",
+        "period": "LTM"
+      },
+      "shares_outstanding": {
+        "value": 10.21,
+        "unit": "млрд"
+      },
+      "capital_adequacy": {
+        "status": "Высокая",
+        "note": "Соответствует регуляторным требованиям"
+      }
+    },
+    "key_strengths": [
+      "Высокий ROE выше 23%",
+      "Стабильный рост прибыли и кредитного портфеля",
+      "Высокая дивидендная доходность ~12.5%",
+      "Низкий P/E указывает на потенциальную недооценку"
+    ],
+    "risks": [
+      "Замедление кредитования в стране",
+      "Риски по ипотечному портфелю (вырос средний срок на 10 лет)",
+      "Влияние высокой ключевой ставки ЦБ РФ",
+      "Макроэкономические риски"
+    ],
+    "data_sources": [
+      "MOEX (26.12.2025)",
+      "TradingView",
+      "StockAnalysis.com",
+      "Tinkoff Invest"
+    ]
+  },
+  {
+    "company": {
+      "ticker": "YDEX",
+      "name": "Яндекс (МКПАО)",
+      "sector": "Информационные технологии",
+      "exchange": "MOEX"
+    },
+    "price": {
+      "current": 4533.50,
+      "currency": "RUB",
+      "date": "2025-12-27"
+    },
+    "market_cap": {
+      "value": 1516000,
+      "unit": "млн RUB",
+      "note": "1.516-1.778 трлн RUB в зависимости от периода"
+    },
+    "valuation_multiples": {
+      "P_E": {
+        "value": null,
+        "note": "Данные отсутствуют в последних отчетах"
+      },
+      "P_B": {
+        "value": null,
+        "note": "Данные отсутствуют в последних отчетах"
+      },
+      "P_S": {
+        "value": null,
+        "note": "Данные отсутствуют в последних отчетах"
+      }
+    },
+    "profitability": {
+      "EBITDA_margin": {
+        "value": 18.0,
+        "unit": "%",
+        "period": "1H 2025"
+      },
+      "EBITDA_margin_2024": {
+        "value": 17.2,
+        "unit": "%",
+        "calculated_from": "188.6-221 млрд / 1094 млрд"
+      },
+      "net_profit_margin": {
+        "value": 1.08,
+        "unit": "%",
+        "period": "2024",
+        "note": "Низкая, но повышающаяся тенденция"
+      }
+    },
+    "per_share_metrics": {
+      "dividend_per_share": {
+        "value": 80,
+        "unit": "RUB",
+        "period": "За полугодие 2025"
+      },
+      "dividend_yield": {
+        "value": 1.96,
+        "unit": "%",
+        "date": "2025-09-26"
+      }
+    },
+    "financial_position": {
+      "revenue": {
+        "value": 1094000,
+        "unit": "млн RUB",
+        "period": "FY 2024",
+        "growth_yoy": 37
+      },
+      "revenue_1h_2025": {
+        "value": 639000,
+        "unit": "млн RUB",
+        "growth_yoy": 34
+      },
+      "net_income": {
+        "value": 11500,
+        "unit": "млн RUB",
+        "period": "FY 2024",
+        "range": "11.5-12 млрд RUB"
+      },
+      "EBITDA": {
+        "value": 204800,
+        "unit": "млн RUB",
+        "period": "FY 2024",
+        "range": "188.6-221 млрд RUB"
+      },
+      "EBITDA_1h_2025": {
+        "value": 114900,
+        "unit": "млн RUB"
+      },
+      "net_debt": {
+        "value": 250000,
+        "unit": "млн RUB",
+        "previous": 260000,
+        "status": "Снижение долга"
+      }
+    },
+    "growth_metrics": {
+      "revenue_growth_2024": {
+        "value": 37,
+        "unit": "%"
+      },
+      "revenue_growth_1h_2025": {
+        "value": 34,
+        "unit": "%"
+      },
+      "EBITDA_growth_2024": {
+        "value": 27,
+        "unit": "%"
+      },
+      "EBITDA_growth_forecast_2025": {
+        "value": 30,
+        "unit": "%"
+      }
+    },
+    "business_segments": {
+      "search_and_portal": {
+        "revenue": "Основной доход от рекламы поиска (+12% г/г)",
+        "market_share": "67.5%"
+      },
+      "rides_mobility": {
+        "revenue": 398000,
+        "unit": "млн RUB",
+        "growth": 14
+      },
+      "b2b_tech": {
+        "revenue": 21000,
+        "unit": "млн RUB",
+        "growth": 53,
+        "subunits": {
+          "yandex_cloud": {
+            "revenue": 12800,
+            "unit": "млн RUB",
+            "growth": 46,
+            "clients": 47000
+          },
+          "ai_services": {
+            "growth_multiplier": 2.6
+          },
+          "yandex_360": {
+            "revenue": 8200,
+            "unit": "млн RUB",
+            "growth": 66,
+            "paying_users": 7200000
+          }
+        }
+      },
+      "plus_entertainment": {
+        "revenue": 32100,
+        "unit": "млн RUB",
+        "growth": 56
+      }
+    },
+    "financial_guidance": {
+      "revenue_growth_2025_forecast": {
+        "value": 30,
+        "unit": "%",
+        "direction": "более 30%"
+      },
+      "EBITDA_2025_forecast": {
+        "value": 250000,
+        "unit": "млн RUB",
+        "direction": "не менее 250 млрд RUB"
+      }
+    },
+    "analyst_consensus": {
+      "target_price_2025_2026": {
+        "min": 6800,
+        "max": 8879,
+        "unit": "RUB"
+      },
+      "short_term_target_march_2025": {
+        "min": 4327,
+        "max": 5164,
+        "unit": "RUB"
+      },
+      "long_term_target_2027": {
+        "value": 10426,
+        "unit": "RUB"
+      }
+    },
+    "key_strengths": [
+      "Быстрый рост выручки (+37% в 2024, +34% в 1H 2025)",
+      "Диверсификация доходов (поиск, мобильность, облако, ИИ, развлечения)",
+      "Высокий EBITDA маржин ~18% и растущая прибыльность",
+      "Снижение чистого долга до 250 млрд RUB",
+      "Лидерство на рынке поиска (67.5% доля)",
+      "Экспоненциальный рост облачных сервисов и ИИ"
+    ],
+    "risks": [
+      "Замедление рекламного рынка (ноябрь 2024 - январь 2025)",
+      "Низкая прибыльность в электронной коммерции",
+      "Макроэкономические риски и волатильность рекламного рынка",
+      "Зависимость от поиска как основного источника дохода"
+    ],
+    "data_sources": [
+      "MOEX (27.12.2025)",
+      "Яндекс официальные отчеты",
+      "Tinkoff Invest",
+      "TradingView"
+    ]
+  },
+  {
+    "company": {
+      "ticker": "POSI",
+      "name": "ПАО \"Группа Позитив\" (Positive Technologies)",
+      "sector": "Информационные технологии (Кибербезопасность)",
+      "exchange": "MOEX"
+    },
+    "price": {
+      "current": 1017.00,
+      "currency": "RUB",
+      "date": "2025-12-26",
+      "range": "985.4 - 1083.2"
+    },
+    "market_cap": {
+      "value": 933,
+      "unit": "млрд RUB"
+    },
+    "valuation_multiples": {
+      "P_E": {
+        "value": 24.1,
+        "note": "Высокий мультипликатор, управленческая отчетность показывает убыток"
+      },
+      "P_B": {
+        "value": 4.0,
+        "interpretation": "Высокий коэффициент цена-к-активам"
+      },
+      "P_S": {
+        "value": 2.3,
+        "interpretation": "Средний по отрасли"
+      }
+    },
+    "profitability": {
+      "EBITDA": {
+        "value": 6500,
+        "unit": "млн RUB",
+        "period": "FY 2024",
+        "previous_year": 10800,
+        "change_yoy": -39.8
+      },
+      "EBITDA_margin": {
+        "value": 26.5,
+        "unit": "%",
+        "calculated_from": "6.5 / 24.5"
+      },
+      "gross_profit": {
+        "value": 22800,
+        "unit": "млн RUB",
+        "gross_margin": 93
+      },
+      "net_profit_margin_msfo": {
+        "value": 14.9,
+        "unit": "%",
+        "note": "По МСФО для 2024"
+      },
+      "net_profit_margin_rsbu": {
+        "value": 64.9,
+        "unit": "%",
+        "note": "По РСБУ для 2024"
+      }
+    },
+    "per_share_metrics": {
+      "EPS": {
+        "value": null,
+        "note": "Не рассчитан из-за убытков по управленческой отчетности"
+      }
+    },
+    "financial_position_msfo": {
+      "revenue": {
+        "value": 24500,
+        "unit": "млн RUB",
+        "growth_yoy": 10,
+        "period": "FY 2024"
+      },
+      "net_income": {
+        "value": 3660,
+        "unit": "млн RUB",
+        "period": "FY 2024",
+        "change_from_prev": -9696
+      },
+      "revenue_licenses": {
+        "value": 21700,
+        "unit": "млн RUB",
+        "previous": 20150
+      },
+      "revenue_cybersecurity_services": {
+        "value": 2140,
+        "unit": "млн RUB",
+        "previous": 1737
+      }
+    },
+    "financial_position_rsbu": {
+      "revenue": {
+        "value": 10000,
+        "unit": "млн RUB",
+        "growth_yoy": 113
+      },
+      "net_income": {
+        "value": 6490,
+        "unit": "млн RUB",
+        "growth_yoy": 40.88
+      }
+    },
+    "financial_position_management": {
+      "revenue_shipments": {
+        "value": 24100,
+        "unit": "млн RUB",
+        "note": "Общий объем отгрузок с корректировкой на оплату"
+      },
+      "net_loss": {
+        "value": -2700,
+        "unit": "млн RUB",
+        "note": "Убыток по управленческой отчетности"
+      },
+      "status": "Компания ниже ожиданий менеджмента на 2024 год"
+    },
+    "growth_metrics": {
+      "revenue_growth_msfo_yoy": {
+        "value": 10,
+        "unit": "%"
+      },
+      "revenue_growth_rsbu_yoy": {
+        "value": 113,
+        "unit": "%"
+      },
+      "EBITDA_decline_yoy": {
+        "value": -39.8,
+        "unit": "%"
+      },
+      "net_income_decline_msfo_yoy": {
+        "value": -62.3,
+        "unit": "%"
+      }
+    },
+    "company_outlook": {
+      "forecast_2025": "Возврат к таргетируемым темпам роста бизнеса",
+      "profitability_goal": "Возврат к рентабельности по NIC (Net Income by Controllable)",
+      "dividend_plan": "Выплата дивидендов при возврате к прибыльности"
+    },
+    "analyst_consensus": {
+      "target_price": 1100,
+      "unit": "RUB",
+      "current_downside": -7.99,
+      "unit_downside": "%"
+    },
+    "key_strengths": [
+      "Высокая валовая маржа 95% на отгрузках",
+      "Диверсификация доходов (лицензии + услуги кибербезопасности)",
+      "Сильный рост лицензионного бизнеса",
+      "Высокая маржа EBITDA 26.5%"
+    ],
+    "risks": [
+      "Значительное падение чистой прибыли по МСФО (-62% г/г)",
+      "Высокая оценка P/E 24.1x при волатильности прибыли",
+      "Неправильные прогнозы менеджмента по объемам отгрузок",
+      "Отрицательный денежный поток по управленческой отчетности",
+      "Разрыв между МСФО и РСБУ показателями",
+      "Потенциальная переоценка акций"
+    ],
+    "analysis_note": {
+      "warning": "POSI показывает значительное расхождение между МСФО и РСБУ отчетностью",
+      "recommendation": "Требует внимательного мониторинга результатов 2025 года",
+      "dividend_update": "Совет директоров рассмотрит рекомендации по дивидендам 7 апреля 2025"
+    },
+    "data_sources": [
+      "MOEX (26.12.2025)",
+      "AK&M (07.04.2025)",
+      "Positive Technologies пресс-релизы",
+      "TradingView",
+      "Tinkoff Invest"
+    ]
+  },
+  {
+    "company": {
+      "ticker": "ROSN",
+      "name": "ПАО НК \"Роснефть\"",
+      "sector": "Энергетика (Нефтегазовая промышленность)",
+      "exchange": "MOEX"
+    },
+    "price": {
+      "current": 406.70,
+      "currency": "RUB",
+      "date": "2025-12-24",
+      "range": "376.5 - 429"
+    },
+    "market_cap": {
+      "value": 4130000,
+      "unit": "млн RUB"
+    },
+    "valuation_multiples": {
+      "P_E": {
+        "value": 7.20,
+        "range": "7.20 - 9.89",
+        "interpretation": "Низкий мультипликатор, близко к справедливой стоимости"
+      },
+      "P_B": {
+        "value": 0.47,
+        "range": "0.47 - 0.5",
+        "interpretation": "Торгуется ниже балансовой стоимости, потенциально недооценена"
+      },
+      "P_S": {
+        "value": 0.49,
+        "interpretation": "Очень низкий мультипликатор продаж"
+      },
+      "EV_EBITDA": {
+        "value": 3.1,
+        "range": "3.1 - 3.45"
+      }
+    },
+    "profitability": {
+      "ROE": {
+        "value": 5.5,
+        "unit": "%",
+        "range": "4.7 - 6.1",
+        "interpretation": "Низкая рентабельность собственного капитала"
+      },
+      "ROA": {
+        "value": 2.35,
+        "unit": "%",
+        "range": "2 - 2.7"
+      },
+      "ROIC": {
+        "value": 12.17,
+        "unit": "%",
+        "interpretation": "Приемлемый уровень"
+      },
+      "EBITDA_margin": {
+        "value": 29.7,
+        "unit": "%",
+        "period": "FY 2024"
+      },
+      "EBITDA_margin_forecast": {
+        "value": 27,
+        "unit": "%",
+        "period": "3Q 2025"
+      }
+    },
+    "per_share_metrics": {
+      "EPS": {
+        "value": 54.15,
+        "unit": "RUB",
+        "period": "TTM"
+      },
+      "dividend_per_share_1h_2025": {
+        "value": 11.56,
+        "unit": "RUB",
+        "yield": 2.8
+      },
+      "dividend_per_share_3q_2025": {
+        "value": 1.50,
+        "unit": "RUB",
+        "yield": 0.36
+      },
+      "dividend_annual_forecast": {
+        "low": 14.7,
+        "high": 16.8,
+        "unit": "RUB",
+        "yield": 3.4,
+        "unit_yield": "%"
+      }
+    },
+    "financial_position_2024": {
+      "revenue": {
+        "value": 10139000,
+        "unit": "млн RUB",
+        "growth_yoy": 10.7
+      },
+      "net_income": {
+        "value": 1084000,
+        "unit": "млн RUB",
+        "change_from_2023": -14.4
+      },
+      "EBITDA": {
+        "value": 3029000,
+        "unit": "млн RUB",
+        "growth_yoy": 0.8,
+        "margin": 29.7
+      },
+      "free_cash_flow": {
+        "value": 1295000,
+        "unit": "млн RUB",
+        "change_yoy": -9.3
+      },
+      "capex": {
+        "value": 1442000,
+        "unit": "млн RUB",
+        "change_yoy": 11.2
+      }
+    },
+    "financial_position_9m_2024": {
+      "revenue": {
+        "value": 2594000,
+        "unit": "млн RUB"
+      },
+      "net_income": {
+        "value": 926000,
+        "unit": "млн RUB",
+        "change_yoy": -13.9
+      }
+    },
+    "financial_position_1h_2025": {
+      "revenue": {
+        "value": 4263000,
+        "unit": "млн RUB"
+      },
+      "net_income": {
+        "value": 245000,
+        "unit": "млн RUB",
+        "change_yoy": -55.7
+      }
+    },
+    "financial_stability": {
+      "net_debt": {
+        "value": 3000000,
+        "unit": "млн RUB",
+        "change_ytd": -16,
+        "unit_change": "%"
+      },
+      "net_debt_to_ebitda": {
+        "value": 1.3,
+        "range": "1.2 - 1.3",
+        "interpretation": "Средняя долговая нагрузка"
+      },
+      "shares_outstanding": {
+        "value": 3.11,
+        "unit": "млрд"
+      },
+      "free_float": {
+        "value": 11,
+        "unit": "%"
+      }
+    },
+    "operations": {
+      "oil_production_2024": {
+        "value": 184.0,
+        "unit": "млн тонн",
+        "bbl_per_day": 3737,
+        "unit_bbl": "тыс. барр./сут"
+      },
+      "total_hydrocarbons_2024": {
+        "value": 255.9,
+        "unit": "млн тонн н.э.",
+        "bbl_per_day": 5192,
+        "unit_bbl": "тыс. барр.н.э./сут"
+      },
+      "lifting_costs": {
+        "value": 2.9,
+        "unit": "USD/барр.н.э."
+      },
+      "wells_drilled": {
+        "value": 3000,
+        "unit": "скважин",
+        "horizontal_percentage": 72
+      }
+    },
+    "growth_metrics": {
+      "revenue_growth_2024": {
+        "value": 10.7,
+        "unit": "%"
+      },
+      "EBITDA_growth_2024": {
+        "value": 0.8,
+        "unit": "%"
+      },
+      "net_income_change_2024": {
+        "value": -14.4,
+        "unit": "%"
+      }
+    },
+    "key_challenges": {
+      "oil_production_constraints": "Ограничение добычи нефти по решению Правительства РФ",
+      "interest_rate_impact": "Рост ключевой ставки ЦБ РФ - процентные расходы выросли в 1.5 раза",
+      "currency_impact": "Курсовая переоценка валютных обязательств",
+      "tax_rate_changes": "Изменения налога на прибыль"
+    },
+    "analyst_consensus": {
+      "fair_value_estimate": 140,
+      "unit": "RUB",
+      "downside_from_current": -3.5,
+      "unit_downside": "%",
+      "target_range": "550 - 700",
+      "unit_range": "RUB",
+      "note": "Зависит от цен на нефть и макрофакторов"
+    },
+    "dividend_strategy": {
+      "consistency": "Стабильно платит дивиденды",
+      "2024_payout": "3.5% по итогам года",
+      "share_buyback": "Программа выкупа собственных акций до конца 2026 года",
+      "buyback_details": "Осень 2024: 2.6 млн акций по цене 443.7 RUB"
+    },
+    "key_strengths": [
+      "Низкие мультипликаторы P/E, P/B, P/S указывают на потенциальную недооценку",
+      "Высокий EBITDA маржин ~29.7%",
+      "Стабильные дивидендные выплаты",
+      "Снижение чистого долга на 16% в 2025",
+      "ROIC 12.17% выше стоимости капитала",
+      "Программа выкупа собственных акций"
+    ],
+    "risks": [
+      "Низкая рентабельность собственного капитала (ROE ~5-6%)",
+      "Волатильность цен на нефть и курса рубля",
+      "Высокие процентные расходы из-за высокой ключевой ставки",
+      "Ограничение добычи по решению Правительства РФ",
+      "Капитальные затраты и необходимость их финансирования",
+      "Геополитические риски и санкции",
+      "Высокие налоги"
+    ],
+    "future_growth_drivers": [
+      "Проект Восток Ойл - основной драйвер роста",
+      "Развитие СПГ проектов",
+      "Повышение цен на нефть"
+    ],
+    "data_sources": [
+      "MOEX (24.12.2025)",
+      "Роснефть официальные отчеты",
+      "TradingView",
+      "Smart-Lab",
+      "Tinkoff Invest"
+    ]
+  }
+]

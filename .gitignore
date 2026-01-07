@@ -55,7 +55,7 @@ htmlcov/
 
 # Data files
 *.csv
-*.json
+# *.json
 *.parquet
 data/
 raw_data/
