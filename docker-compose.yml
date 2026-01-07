@@ -13,6 +13,7 @@ services:
 
   realtime-evaluator:
     build: .
+    restart: unless-stopped  # Автоматический перезапуск
     volumes:
       - ./chroma_db_new:/app/chroma_db_new
       - ./logs:/app/logs
