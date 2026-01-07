@@ -2,22 +2,28 @@ version: '3.8'
 
 services:
   historical-data-gatherer:
-    build: .
+    image: ${DOCKER_IMAGE:-local-llm-project}
+    build:
+      context: .
+      dockerfile: Dockerfile
     volumes:
       - ./chroma_db_new:/app/chroma_db_new
       - ./logs:/app/logs
     environment:
       - PYTHONPATH=/app
     command: python -m historical_data_preparation.parser_smart_lab
-    # To run: docker-compose run --rm historical-data-gatherer
 
   realtime-evaluator:
-    build: .
-    restart: unless-stopped  # Автоматический перезапуск
+    image: ${DOCKER_IMAGE:-local-llm-project}
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: realtime-evaluator
+    restart: unless-stopped
     volumes:
       - ./chroma_db_new:/app/chroma_db_new
       - ./logs:/app/logs
     environment:
       - PYTHONPATH=/app
+      # - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-your_dev_token}
     command: python -m llm_prediction.predictor_main
-    # To run: docker-compose run --rm realtime-evaluator
