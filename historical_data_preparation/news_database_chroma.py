@@ -402,8 +402,17 @@ class NewsDatabase:
                 ids=urls,
                 include=[]  # не нужны метаданные, только ID
             )
+
+            # Добавляем проблематичные ссылки (например, те, которые модель не хочет обогащать по политическим соображениям)
+            try:
+                with open('filename.txt', 'r') as f:
+                    problematic = [line.strip() for line in f]
+            except FileNotFoundError:
+                problematic = []  # Empty list if file doesn't exist
             
             existing_set = set(existing['ids'])
+            existing_set.update(problematic)
+            
             unsaved = [url for url in urls if url not in existing_set]
             
             print(f"Checked {len(urls)} URLs: {len(unsaved)} new, {len(existing_set)} already in DB")

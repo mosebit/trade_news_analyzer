@@ -107,7 +107,10 @@ def analyze_page_with_url(url: str):
         data_from_post['text'],
         tickers_descriptions
         )
-
+    
+    if not enriched_event:
+        return None
+    
     prepared_for_saving = news_database_chroma.PreparedEvent(
         url=url,
         title=data_from_post.get('title'),
@@ -132,6 +135,11 @@ def analyze_page_of_news_NEW(ticker: str, page_index: int, db_client: news_datab
 
     for link in filtered_links:
         prepared_for_saving = analyze_page_with_url(link)
+
+        if not prepared_for_saving:
+            with open('problematic_urls', 'a') as f:
+                f.write(link + '\n')
+            continue
 
         if prepared_for_saving.timestamp < smallest_date_int:
             smallest_date_int = prepared_for_saving.timestamp

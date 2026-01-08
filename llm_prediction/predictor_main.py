@@ -10,10 +10,13 @@ from historical_data_preparation import ai_enrichers_and_filters
 from historical_data_preparation import future_price_moex
 from llm_prediction import searcher
 from telegram_publisher import publish_report
+import logger
 
 import os
 import json
 from datetime import datetime, timedelta
+
+log = logger.get_logger(__name__)
 
 def get_fundamental_metrics(ticker: str, info_file_path=None):
     if not info_file_path:
@@ -71,11 +74,14 @@ def event_process_chain(
     # проверка импакта - если ниже чем medium, то данную новость просто сохраняем в БД, к публикации не готовим
     if new_event.impact not in ["medium", "high"]:
         saving_pipeline.saving_pipeline(new_event)
+        log.info(f"Импакт низкий, новость сохранена в БД без подготовки и публикации отчета ({new_event.url})")
         return None
     
     # получение исторических данных
+    log.info("Поиск похожих новостей в БД")
     similar_from_rag = chroma_db.find_similar_news_by_event_new(new_event, limit=10)
     if similar_from_rag:
+        log.info(f"Найдены новости похожие на анализируемую ({new_event.url})")
         similar_validated_indexes = ai_enrichers_and_filters.find_similar_events_in_history(new_event, similar_from_rag)
         
         if similar_validated_indexes:
@@ -114,29 +120,6 @@ def event_process_chain(
     publish_report(llm_report)
 
     saving_pipeline.saving_pipeline(new_event)
-
-
-    # if llm_report:
-    #     print("\n" + "="*60)
-    #     print("ФИНАНСОВЫЙ ОТЧЕТ ПО СОБЫТИЮ")
-    #     print("="*60)
-    #     print(f"Событие: {new_event.title}")
-    #     print(f"Время: {datetime.fromtimestamp(new_event.timestamp)}")
-    #     print(f"Тикеры: {', '.join(new_event.tickers)}")
-    #     print(f"Прогноз изменения цены: {llm_report['price_change_prediction']}")
-    #     print(f"Уровень уверенности: {llm_report['confidence_level']}")
-    #     print(f"Рекомендация: {llm_report['recommended_action']}")
-    #     print("\nКраткое описание события:")
-    #     print(llm_report['event_summary'])
-    #     print("\nКлючевые факторы:")
-    #     for factor in llm_report['key_factors']:
-    #         print(f"  • {factor}")
-    #     if llm_report['similar_events']:
-    #         print("\nПохожие события:")
-    #         for i, event in enumerate(llm_report['similar_events'], 1):
-    #             print(f"  {i}. {event['description']} ({event['timestamp']})")
-    #             print(f"     Тикеры: {', '.join(event['tickers'])}")
-    #     print("="*60)
 
     return llm_report
 

@@ -6,6 +6,10 @@ import requests
 import os
 import re
 from .news_database_chroma import PreparedEvent
+import logger
+
+log = logger.get_logger(__name__)
+
 
 TICKERS = ["SBER", "POSI", "ROSN", "YDEX"]
 
@@ -63,7 +67,7 @@ def yandex_chat_completion(
     max_tokens: int = 2000,
     response_format: Optional[str] = None,
     retry_on_json_error: bool = True,
-    max_retries: int = 2
+    max_retries: int = 3
 ) -> Optional[str]:
     """
     Прямой вызов YandexGPT API (синхронный) с улучшенной обработкой JSON.
@@ -98,6 +102,7 @@ def yandex_chat_completion(
 
     for attempt in range(max_retries):
         try:
+            log.info(f"Отправка запроса по адресу '{LLM_CONFIG['base_url']}{LLM_CONFIG['completion_url']}', запрос: {str(payload)[:500]}...")
             response = requests.post(
                 f"{LLM_CONFIG['base_url']}{LLM_CONFIG['completion_url']}",
                 json=payload,
@@ -111,6 +116,7 @@ def yandex_chat_completion(
             # Извлекаем текст ответа
             result_text = data['result']['alternatives'][0]['message']['text']
 
+            log.info(f"Ответ от LLM: '{result_text[:500]}'")
             # Если требуется JSON, валидируем и очищаем ответ
             if response_format == "json_object":
                 try:
@@ -124,17 +130,19 @@ def yandex_chat_completion(
                     print(f"Исходный ответ: {result_text[:500]}...")
 
                     if attempt < max_retries - 1 and retry_on_json_error:
-                        # Добавляем дополнительную инструкцию в промпт
-                        messages.append({
-                            "role": "assistant",
-                            "content": result_text
-                        })
-                        messages.append({
-                            "role": "user",
-                            "content": "Ответ не является валидным JSON. Верни ТОЛЬКО чистый JSON объект без markdown разметки, без дополнительного текста и комментариев."
-                        })
+                        # БЕЗ дополнительного контекста пытаемся получить ответ от LLM (модель иногда отвечает, что на эту тему говорить не будет, в контекст это класть не стоит)
+                        # # Добавляем дополнительную инструкцию в промпт
+                        # messages.append({
+                        #     "role": "assistant",
+                        #     "content": result_text
+                        # })
+                        # messages.append({
+                        #     "role": "user",
+                        #     "content": "Ответ не является валидным JSON. Верни ТОЛЬКО чистый JSON объект без markdown разметки, без дополнительного текста и комментариев."
+                        # })
                         continue
                     else:
+
                         return None
 
             return result_text
@@ -168,7 +176,6 @@ class EnrichedEventData(BaseModel):
         description="Потенциальное влияние новости на цену актива"
     )
 
-
 def enrich_news_data(event_description: str, tickers_data: dict):
     """
     Обогащает данные о новости с помощью LLM анализа.
@@ -185,41 +192,49 @@ def enrich_news_data(event_description: str, tickers_data: dict):
         for ticker, data in tickers_data.items()
     ])
 
-    # ✅ УЛУЧШЕННЫЙ промпт с явным требованием JSON без markdown
-    prompt = f"""Проанализируй следующую новость и предоставь структурированный ответ.
+    prompt = f"""Ты финансовый аналитик. Твоя задача — проанализировать новость и вернуть структурированные данные в формате JSON.
 
-НОВОСТЬ:
+НОВОСТЬ ДЛЯ АНАЛИЗА:
 {event_description}
 
-ДОСТУПНЫЕ АКТИВЫ ДЛЯ АНАЛИЗА:
+ДОСТУПНЫЕ АКТИВЫ:
 {tickers_context}
 
-ЗАДАЧИ:
-1. Создай краткое описание новости (clean_description) - убери рекламу, воду, лишние детали. Оставь только суть, НО ничего полезного НЕ удаляй!
-2. Определи общий тон новости (sentiment): positive (позитивная), negative (негативная) или neutral (нейтральная).
-3. Определи, к каким тикерам из списка [{', '.join(TICKERS)}] относится эта новость (tickers_of_interest). Список может быть пустым, если новость не касается ни одного из активов.
-4. Оцени потенциальное влияние новости на цену активов (level_of_potential_impact_on_price):
-   - none: новость не влияет на цену
-   - low: минимальное влияние (обычные события)
-   - medium: заметное влияние (важные корпоративные события)
-   - high: сильное влияние (критические события, смена руководства, крупные сделки)
+ИНСТРУКЦИЯ:
+Проанализируй новость и заполни следующие поля:
 
-ВАЖНО: Верни ТОЛЬКО валидный JSON объект без markdown разметки (```json), без пояснений и комментариев.
+1. clean_description — краткое содержание новости (2-3 предложения). Убери рекламные блоки, ссылки, теги, метаданные. Сохрани ключевую информацию и цифры.
 
-Структура JSON:
+2. sentiment — оцени тон новости:
+   - positive: позитивная для рынка/компаний
+   - negative: негативная для рынка/компаний  
+   - neutral: нейтральная или смешанная
+
+3. tickers_of_interest — список тикеров из [{', '.join(TICKERS)}], которых касается новость. Если новость не относится к конкретным активам, верни пустой массив [].
+
+4. level_of_potential_impact_on_price — потенциальное влияние на цену:
+   - none: не влияет на цену
+   - low: слабое влияние (рутинные события)
+   - medium: среднее влияние (значимые корпоративные события)
+   - high: сильное влияние (критические события, крупные сделки)
+
+ФОРМАТ ОТВЕТА:
+Верни ТОЛЬКО JSON без дополнительного текста, без обёрток вида ```json```, без объяснений:
+
 {{
-  "clean_description": "краткое описание новости",
+  "clean_description": "текст",
   "sentiment": "positive/negative/neutral",
   "tickers_of_interest": ["TICKER1", "TICKER2"],
   "level_of_potential_impact_on_price": "none/low/medium/high"
 }}
-"""
+
+Даже если новость содержит рекламу или нерелевантный контент, всегда выполняй анализ и возвращай JSON."""
 
     try:
         messages = [
             {
                 "role": "system",
-                "content": "Ты эксперт финансовый аналитик, специализирующийся на российском фондовом рынке. Ты анализируешь новости и определяешь их влияние на котировки акций. Ты ВСЕГДА отвечаешь чистым JSON без дополнительного текста."
+                "content": "Ты финансовый аналитик российского фондового рынка. Ты анализируешь новости и всегда возвращаешь валидный JSON без дополнительного текста. Ты никогда не отказываешься от выполнения задачи."
             },
             {
                 "role": "user",
@@ -256,7 +271,6 @@ def enrich_news_data(event_description: str, tickers_data: dict):
     except Exception as e:
         print(f"Ошибка при обработке ответа LLM: {e}")
         return None
-
 
 class DuplicateCheckResult(BaseModel):
     is_duplicate: bool = Field(
