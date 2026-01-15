@@ -19,7 +19,10 @@ load_dotenv(os.path.join(project_root, '.env'))
 
 YANDEX_IAM_TOKEN = os.getenv('YANDEX_IAM_TOKEN')
 YANDEX_FOLDER_ID = os.getenv('YANDEX_FOLDER_ID')
-YANDEX_MODEL_URI = os.getenv('YANDEX_MODEL_URI', f"gpt://{YANDEX_FOLDER_ID}/yandexgpt/latest")
+YANDEX_MODEL_URI = os.getenv('YANDEX_MODEL_URI', f"gpt://{YANDEX_FOLDER_ID}/aliceai-llm/latest")
+
+USE_QWEN = os.getenv('USE_QWEN', 'false').lower() == 'true'
+QWEN_MODEL = os.getenv('QWEN_MODEL', 'qwen3-235b-a22b-fp8/latest')
 
 LLM_CONFIG = {
     'base_url': 'https://llm.api.cloud.yandex.net/foundationModels/v1',
@@ -130,19 +133,8 @@ def yandex_chat_completion(
                     print(f"Исходный ответ: {result_text[:500]}...")
 
                     if attempt < max_retries - 1 and retry_on_json_error:
-                        # БЕЗ дополнительного контекста пытаемся получить ответ от LLM (модель иногда отвечает, что на эту тему говорить не будет, в контекст это класть не стоит)
-                        # # Добавляем дополнительную инструкцию в промпт
-                        # messages.append({
-                        #     "role": "assistant",
-                        #     "content": result_text
-                        # })
-                        # messages.append({
-                        #     "role": "user",
-                        #     "content": "Ответ не является валидным JSON. Верни ТОЛЬКО чистый JSON объект без markdown разметки, без дополнительного текста и комментариев."
-                        # })
                         continue
                     else:
-
                         return None
 
             return result_text
@@ -159,6 +151,138 @@ def yandex_chat_completion(
             return None
 
     return None
+
+
+def qwen_chat_completion(
+    messages: List[Dict[str, str]],
+    temperature: float = 0.3,
+    max_tokens: int = 2000,
+    response_format: Optional[str] = None,
+    retry_on_json_error: bool = True,
+    max_retries: int = 3
+) -> Optional[str]:
+    """
+    Qwen model via Yandex Cloud OpenAI-compatible API.
+
+    Args:
+        messages: List[Dict] with keys 'role' and 'content'
+        temperature: Temperature (0.0 - 1.0)
+        max_tokens: Maximum tokens in response
+        response_format: "json_object" for JSON mode
+        retry_on_json_error: Retry on JSON parsing errors
+        max_retries: Maximum number of retries
+
+    Returns:
+        Response text or None on error
+    """
+    try:
+        import openai
+
+        client = openai.OpenAI(
+            api_key=YANDEX_IAM_TOKEN,
+            base_url="https://rest-assistant.api.cloud.yandex.net/v1",
+            project=YANDEX_FOLDER_ID
+        )
+
+        model_uri = f"gpt://{YANDEX_FOLDER_ID}/{QWEN_MODEL}"
+
+        # Convert messages to instructions + input format
+        # Extract system message as instructions
+        instructions = ""
+        user_input = ""
+
+        for msg in messages:
+            if msg["role"] == "system":
+                instructions += msg.get("content", "") + "\n"
+            elif msg["role"] == "user":
+                user_input += msg.get("content", "") + "\n"
+
+        # Add JSON format instruction if needed
+        if response_format == "json_object":
+            instructions += "\nВсегда отвечай валидным JSON без дополнительного текста."
+
+        for attempt in range(max_retries):
+            try:
+                log.info(f"Отправка запроса к Qwen модели: {model_uri}")
+
+                response = client.responses.create(
+                    model=model_uri,
+                    temperature=temperature,
+                    instructions=instructions.strip(),
+                    input=user_input.strip(),
+                    max_output_tokens=max_tokens
+                )
+
+                result_text = response.output_text
+
+                log.info(f"Ответ от Qwen: '{result_text[:500]}'")
+
+                # Validate JSON if required
+                if response_format == "json_object":
+                    try:
+                        cleaned_json = extract_json_from_text(result_text)
+                        json.loads(cleaned_json)
+                        return cleaned_json
+                    except json.JSONDecodeError as je:
+                        print(f"Попытка {attempt + 1}/{max_retries}: Ошибка парсинга JSON: {je}")
+                        print(f"Исходный ответ: {result_text[:500]}...")
+
+                        if attempt < max_retries - 1 and retry_on_json_error:
+                            continue
+                        else:
+                            return None
+
+                return result_text
+
+            except Exception as e:
+                print(f"Qwen API error (attempt {attempt + 1}/{max_retries}): {e}")
+                if attempt < max_retries - 1:
+                    continue
+                else:
+                    return None
+
+    except ImportError:
+        print("❌ OpenAI package not installed. Run: pip install openai")
+        return None
+    except Exception as e:
+        print(f"Qwen setup error: {e}")
+        return None
+
+    return None
+
+
+def chat_completion(
+    messages: List[Dict[str, str]],
+    temperature: float = 0.3,
+    max_tokens: int = 2000,
+    response_format: Optional[str] = None,
+    retry_on_json_error: bool = True,
+    max_retries: int = 3
+) -> Optional[str]:
+    """
+    Unified chat completion that switches between Yandex and Qwen models.
+
+    Args:
+        messages: List[Dict] with keys 'role' and 'content'
+        temperature: Temperature (0.0 - 1.0)
+        max_tokens: Maximum tokens in response
+        response_format: "json_object" for JSON mode
+        retry_on_json_error: Retry on JSON parsing errors
+        max_retries: Maximum number of retries
+
+    Returns:
+        Response text or None on error
+    """
+    if USE_QWEN:
+        return qwen_chat_completion(
+            messages, temperature, max_tokens,
+            response_format, retry_on_json_error, max_retries
+        )
+    else:
+        return yandex_chat_completion(
+            messages, temperature, max_tokens,
+            response_format, retry_on_json_error, max_retries
+        )
 
 
 class EnrichedEventData(BaseModel):
@@ -207,7 +331,7 @@ def enrich_news_data(event_description: str, tickers_data: dict):
 
 2. sentiment — оцени тон новости:
    - positive: позитивная для рынка/компаний
-   - negative: негативная для рынка/компаний  
+   - negative: негативная для рынка/компаний
    - neutral: нейтральная или смешанная
 
 3. tickers_of_interest — список тикеров из [{', '.join(TICKERS)}], которых касается новость. Если новость не относится к конкретным активам, верни пустой массив [].
@@ -242,9 +366,9 @@ def enrich_news_data(event_description: str, tickers_data: dict):
             }
         ]
 
-        response_content = yandex_chat_completion(
-            messages, 
-            temperature=0.1, 
+        response_content = chat_completion(
+            messages,
+            temperature=0.1,
             response_format="json_object",
             retry_on_json_error=True
         )
@@ -346,9 +470,9 @@ def find_duplicates(main_news: str, news_list: List[str]):
             }
         ]
 
-        response_content = yandex_chat_completion(
-            messages, 
-            temperature=0.1, 
+        response_content = chat_completion(
+            messages,
+            temperature=0.1,
             response_format="json_object",
             retry_on_json_error=True
         )
@@ -458,9 +582,9 @@ def find_similar_events_in_history(analyzed_event: PreparedEvent, historical_eve
             }
         ]
 
-        response_content = yandex_chat_completion(
-            messages, 
-            temperature=0.1, 
+        response_content = chat_completion(
+            messages,
+            temperature=0.1,
             response_format="json_object",
             retry_on_json_error=True
         )
@@ -477,7 +601,7 @@ def find_similar_events_in_history(analyzed_event: PreparedEvent, historical_eve
 
         # Валидация индексов
         valid_indices = [
-            int(idx) for idx in result.similar_indices 
+            int(idx) for idx in result.similar_indices
             if isinstance(idx, int) and 0 <= idx < len(historical_events)
         ]
 
@@ -604,9 +728,9 @@ def generate_report(
             }
         ]
 
-        response_content = yandex_chat_completion(
-            messages, 
-            temperature=0.1, 
+        response_content = chat_completion(
+            messages,
+            temperature=0.1,
             response_format="json_object",
             retry_on_json_error=True
         )
@@ -620,7 +744,27 @@ def generate_report(
 
         # Парсинг ответа с использованием Pydantic модели
         result = ReportData.model_validate_json(cleaned_json)
-        return result.model_dump()
+        report_dict = result.model_dump()
+
+        # Добавить URL и timestamp к похожим событиям
+        if similar_events_and_prices and len(similar_events_and_prices) > 0:
+            enhanced_similar = []
+            for event_data in similar_events_and_prices[:5]:  # Top 5
+                event_info = event_data.get('event_data', {})
+                from datetime import datetime
+                timestamp_str = datetime.fromtimestamp(event_info.get('timestamp', 0)).strftime('%Y-%m-%d %H:%M')
+
+                enhanced_similar.append({
+                    'title': event_info.get('title', 'N/A'),
+                    'description': event_info.get('clean_description', '')[:150] + '...',
+                    'url': event_info.get('url', ''),
+                    'timestamp': timestamp_str,
+                    'tickers': event_info.get('tickers', [])
+                })
+
+            report_dict['similar_events'] = enhanced_similar
+
+        return report_dict
 
     except ValidationError as e:
         print(f"Ошибка валидации Pydantic модели: {e}")
