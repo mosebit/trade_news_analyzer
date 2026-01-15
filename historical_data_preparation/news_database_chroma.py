@@ -67,7 +67,7 @@ class NewsDatabase:
         query_uri = f"emb://{self.FOLDER_ID}/text-search-query/latest"
         embed_url = "https://llm.api.cloud.yandex.net:443/foundationModels/v1/textEmbedding"
         headers = {"Content-Type": "application/json", "Authorization": f"Bearer {self.IAM_TOKEN}", "x-folder-id": f"{self.FOLDER_ID}"}
-        
+
         query_data = {
             "modelUri": doc_uri if text_type == "doc" else query_uri,
             "text": text,
@@ -88,7 +88,7 @@ class NewsDatabase:
     #               enriched_data: Dict, published_date: str,
     #               published_timestamp: int, other_urls: list = []) -> Optional[str]:
     #     similar_news
-        
+
     def save_news_new(self, event: PreparedEvent, price_changes: Optional[Dict] = None) -> Optional[str]:
         """Сохранение новости в базу данных."""
         try:
@@ -173,7 +173,7 @@ class NewsDatabase:
             news_dict['price_changes'] = json.loads(metadata.get('price_changes'))
 
         return news_dict
-        
+
     # def find_similar_news_by_event_new(self, event: PreparedEvent, limit: int = 5, days_back: Optional[int] = None, threshold: Optional[float] = 0.10) -> List[Dict]:
     #     """Finds similar news based on a PreparedEvent object."""
     #     query_embedding = self.create_embedding_from_text(event.clean_description)
@@ -208,7 +208,7 @@ class NewsDatabase:
     #     print(f"Found {len(similar)} similar news.")
     #     return similar
 
-    def find_similar_news_by_event_new(self, event: PreparedEvent, limit: int = 5, days_back: Optional[int] = None, threshold: Optional[float] = 0.10) -> List[PreparedEvent]:
+    def find_similar_news_by_event_new(self, event: PreparedEvent, limit: int = 5, days_back: Optional[int] = None, threshold: Optional[float] = 0.20) -> List[PreparedEvent]:
         """Finds similar news based on a PreparedEvent object and returns PreparedEvent objects."""
         query_embedding = self.create_embedding_from_text(event.clean_description)
 
@@ -218,7 +218,7 @@ class NewsDatabase:
             n_results=limit,
             include=['metadatas', 'documents', 'distances']
         )
-        
+
         similar_events = []
         # results['ids'][0] - список ID, results['metadatas'][0] - список метаданных
         for i, result_url in enumerate(results['ids'][0]):
@@ -237,7 +237,7 @@ class NewsDatabase:
                     timestamp=metadata.get('timestamp', 0)
                 )
                 similar_events.append(similar_event)
-                
+
         print(f"Found {len(similar_events)} similar news.")
         return similar_events
 
@@ -382,20 +382,20 @@ class NewsDatabase:
             'by_ticker': ticker_counts,
             'vector_mode': 'ChromaDB (быстрый)'
         }
-        
+
     def filter_unsaved_urls(self, urls: List[str]) -> List[str]:
         """
         Фильтрует список URL, возвращая только те, которые отсутствуют в базе данных.
-        
+
         Args:
             urls: список URL для проверки
-            
+
         Returns:
             список URL, которые не найдены в базе данных
         """
         if not urls:
             return []
-        
+
         try:
             # Получаем существующие URL одним запросом
             existing = self.collection.get(
@@ -409,15 +409,15 @@ class NewsDatabase:
                     problematic = [line.strip() for line in f]
             except FileNotFoundError:
                 problematic = []  # Empty list if file doesn't exist
-            
+
             existing_set = set(existing['ids'])
             existing_set.update(problematic)
-            
+
             unsaved = [url for url in urls if url not in existing_set]
-            
+
             print(f"Checked {len(urls)} URLs: {len(unsaved)} new, {len(existing_set)} already in DB")
             return unsaved
-            
+
         except Exception as e:
             print(f"Error filtering URLs: {e}")
             return urls  # в случае ошибки возвращаем все URL

@@ -48,8 +48,13 @@ def format_report(report: Dict[str, Any]) -> str:
     """
     Форматирует словарь в красивый текст для Telegram
     Использует Markdown форматирование
+
+    Специальная обработка для поля 'similar_events' - показывает похожие новости
     """
     lines = ["📊 *ОТЧЕТ*", "━━━━━━━━━━━━━━━━━━━━"]
+
+    # Handle similar_events specially if present
+    similar_events_data = report.pop('similar_events', None)
 
     for key, value in report.items():
         if isinstance(value, (dict, list)):
@@ -58,7 +63,22 @@ def format_report(report: Dict[str, Any]) -> str:
         else:
             lines.append(f"*{key}:* {value}")
 
-    lines.append("━━━━━━━━━━━━━━━━━━━━")
+    # Add similar events section with better formatting
+    if similar_events_data:
+        lines.append(f"\n*📰 ПОХОЖИЕ СОБЫТИЯ ИЗ ИСТОРИИ:*")
+
+        if isinstance(similar_events_data, list):
+            for i, event in enumerate(similar_events_data[:5], 1):  # Show max 5
+                if isinstance(event, dict):
+                    lines.append(f"\n  *{i}.* {event.get('description', event.get('title', 'N/A'))}")
+
+                    # Add URL if available (make it clickable)
+                    if 'url' in event:
+                        lines.append(f"     🔗 [{event['url']}]({event['url']})")
+                else:
+                    lines.append(f"\n  ▪️ {event}")
+
+    lines.append("\n━━━━━━━━━━━━━━━━━━━━")
     return "\n".join(lines)
 
 
