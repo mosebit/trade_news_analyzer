@@ -19,7 +19,7 @@ load_dotenv(os.path.join(project_root, '.env'))
 
 YANDEX_IAM_TOKEN = os.getenv('YANDEX_IAM_TOKEN')
 YANDEX_FOLDER_ID = os.getenv('YANDEX_FOLDER_ID')
-YANDEX_MODEL_URI = os.getenv('YANDEX_MODEL_URI', f"gpt://{YANDEX_FOLDER_ID}/aliceai-llm/latest")
+YANDEX_MODEL_URI = os.getenv('YANDEX_MODEL_URI', f"gpt://{YANDEX_FOLDER_ID}/yandexgpt/latest")
 
 USE_QWEN = os.getenv('USE_QWEN', 'false').lower() == 'true'
 QWEN_MODEL = os.getenv('QWEN_MODEL', 'qwen3-235b-a22b-fp8/latest')
