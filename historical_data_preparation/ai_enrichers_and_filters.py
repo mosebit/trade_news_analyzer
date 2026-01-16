@@ -495,7 +495,6 @@ def find_similar_events_in_history(analyzed_event: PreparedEvent, historical_eve
         print(f"Ошибка при поиске похожих событий: {e}")
         return []
 
-
 class ReportData(BaseModel):
     price_change_prediction: Literal["up", "down", "stable"] = Field(
         description="Прогноз изменения цены актива: up (рост), down (падение), stable (стабильность)"
@@ -506,6 +505,10 @@ class ReportData(BaseModel):
     similar_events: List[dict] = Field(
         default_factory=list,
         description="Список похожих событий с их описаниями и временем"
+    )
+    high_impact_history_events: List[dict] = Field(
+        default_factory=list,
+        description="Список высоковажных исторических событий, связанных с анализируемым событием"
     )
     key_factors: List[str] = Field(
         default_factory=list,
@@ -522,7 +525,8 @@ class ReportData(BaseModel):
 def generate_report(
     analyzed_event: PreparedEvent,
     similar_events_and_prices: Optional[List[dict]] = None,
-    fundamental_metrics: Optional[dict] = None
+    fundamental_metrics: Optional[dict] = None,
+    high_impact_history_events: Optional[List[PreparedEvent]] = None
 ) -> Optional[dict]:
     """
     Генерирует структурированный отчет по событию и сопутствующим данным.
@@ -531,6 +535,7 @@ def generate_report(
         analyzed_event: Анализируемое событие
         similar_events_and_prices: Список похожих событий с ценами
         fundamental_metrics: Фундаментальные метрики по тикерам
+        high_impact_history_events: Список высоковажных исторических событий
 
     Returns:
         dict: Структурированный отчет или None в случае ошибки
@@ -547,9 +552,19 @@ def generate_report(
         ])
         context_parts.append(f"ПОХОЖИЕ СОБЫТИЯ:\n{similar_context}")
 
+    if high_impact_history_events and len(high_impact_history_events) > 0:
+        high_impact_context = "\n".join([
+            f"Высоковажное событие {i+1}: {event.title} ({event.timestamp})\n"
+            f"Описание: {event.clean_description}\n"
+            f"Тикеры: {', '.join(event.tickers)}"
+            for i, event in enumerate(high_impact_history_events[:3])
+        ])
+        context_parts.append(f"ВЫСОКОВАЖНЫЕ ИСТОРИЧЕСКИЕ СОБЫТИЯ:\n{high_impact_context}")
+
     if fundamental_metrics:
         metrics_context = "\n".join([
-            f"{ticker}: {metrics.get('company', {}).get('name', 'N/A')} - P/E: {metrics.get('financial_ratios', {}).get('pe_ratio', 'N/A')}"
+            f"{ticker}: {metrics.get('company', {}).get('name', 'N/A')} - P/E: {metrics.get('financial_ratios', {}).get('pe_ratio', 'N/A')} "
+            f"EV/EBITDA: {metrics.get('financial_ratios', {}).get('ev_ebitda', 'N/A')}"
             for ticker, metrics in fundamental_metrics.items()
         ])
         context_parts.append(f"ФУНДАМЕНТАЛЬНЫЕ МЕТРИКИ:\n{metrics_context}")
@@ -565,9 +580,10 @@ def generate_report(
 1. Определи прогноз изменения цены актива (price_change_prediction): up (рост), down (падение), или stable (стабильность)
 2. Создай краткое описание события и его ключевых моментов (event_summary)
 3. Если были предоставлены похожие события, укажи их в списке similar_events с описаниями
-4. Выдели ключевые факторы, повлиявшие на прогноз (key_factors)
-5. Определи уровень уверенности в прогнозе (confidence_level): low (низкий), medium (средний), high (высокий)
-6. Предложи рекомендуемое торговое действие (recommended_action): buy (покупать), sell (продавать), hold (удерживать), monitor (мониторить)
+4. Если были предоставлены высоковажные исторические события, укажи их в списке high_impact_history_events с описаниями
+5. Выдели ключевые факторы, повлиявшие на прогноз (key_factors)
+6. Определи уровень уверенности в прогнозе (confidence_level): low (низкий), medium (средний), high (высокий)
+7. Предложи рекомендуемое торговое действие (recommended_action): buy (покупать), sell (продавать), hold (удерживать), monitor (мониторить)
 
 ВАЖНО: Верни ТОЛЬКО валидный JSON объект без markdown разметки, без пояснений.
 
@@ -582,6 +598,13 @@ def generate_report(
       "tickers": ["тикеры"]
     }}
   ],
+  "high_impact_history_events": [
+    {{
+      "timestamp": "время события",
+      "description": "описание события",
+      "tickers": ["тикеры"]
+    }}
+  ],
   "key_factors": ["фактор 1", "фактор 2"],
   "confidence_level": "low/medium/high",
   "recommended_action": "buy/sell/hold/monitor"
@@ -589,6 +612,7 @@ def generate_report(
 
 ПРИМЕЧАНИЕ:
 - Если похожих событий нет, оставь пустой массив similar_events
+- Если высоковажных исторических событий нет, оставь пустой массив high_impact_history_events
 - Все поля обязательны
 """
 
@@ -596,7 +620,7 @@ def generate_report(
         messages = [
             {
                 "role": "system",
-                "content": "Ты эксперт по анализу финансовых событий и прогнозированию цен. Ты создаешь структурированные отчеты на основе новостных данных и исторических аналогов. Ты ВСЕГДА отвечаешь чистым JSON без дополнительного текста."
+                "content": "Ты эксперт по анализу финансовых событий и прогнозированию цен. Ты создаешь структурированные отчеты на основе новостных данных, исторических аналогов и фундаментальной информации. Ты ВСЕГДА отвечаешь чистым JSON без дополнительного текста."
             },
             {
                 "role": "user",

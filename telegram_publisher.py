@@ -5,7 +5,7 @@ Telegram Publisher для публикации отчетов
 """
 import os
 import asyncio
-from typing import Any, Dict
+from typing import Any, Dict, List, Optional
 from dotenv import load_dotenv
 from telegram import Bot
 from telegram.constants import ParseMode
@@ -62,12 +62,16 @@ def format_report(report: Dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-async def _publish_report_async(report: Dict[str, Any]) -> None:
+async def _publish_report_async(report: Dict[str, Any], 
+                               main_event_url: Optional[str] = None,
+                               related_urls: Optional[List[str]] = None) -> None:
     """
     Асинхронная публикация отчета в Telegram канал/чат
 
     Args:
         report: Словарь с данными отчета (структура произвольная)
+        main_event_url: URL основного события для отображения в отчете
+        related_urls: Список URL дополнительных событий для отображения в отчете
 
     Raises:
         ValueError: Если не заданы токен или chat_id в .env
@@ -84,6 +88,16 @@ async def _publish_report_async(report: Dict[str, Any]) -> None:
             text = format_report(report)
         except Exception as e:
             text = f"⚠️ Ошибка форматирования отчета: {e}"
+
+        # Добавляем информацию о ссылках в конец отчета
+        if main_event_url or related_urls:
+            text += "\n\n📋 *ИСТОЧНИКИ:*"
+            if main_event_url:
+                text += f"\n🔹 Основной источник: {main_event_url}"
+            if related_urls:
+                text += "\n🔸 Дополнительные источники:"
+                for i, url in enumerate(related_urls, 1):
+                    text += f"\n   {i}. {url}"
 
         # Telegram лимит: 4096 символов на сообщение
         MAX_LENGTH = 4000
@@ -125,13 +139,17 @@ async def _publish_report_async(report: Dict[str, Any]) -> None:
                     )
 
 
-def publish_report(report: Dict[str, Any]) -> None:
+def publish_report(report: Dict[str, Any], 
+                   main_event_url: Optional[str] = None,
+                   related_urls: Optional[List[str]] = None) -> None:
     """
     Синхронная обертка для публикации отчета
     Использует asyncio для запуска асинхронной функции
 
     Args:
         report: Словарь с данными отчета (структура произвольная)
+        main_event_url: URL основного события для отображения в отчете
+        related_urls: Список URL дополнительных событий для отображения в отчете
     """
     try:
         # Пытаемся получить текущий event loop
@@ -140,9 +158,9 @@ def publish_report(report: Dict[str, Any]) -> None:
             # Если loop уже запущен, создаем новый в отдельном потоке
             import nest_asyncio
             nest_asyncio.apply()
-            loop.run_until_complete(_publish_report_async(report))
+            loop.run_until_complete(_publish_report_async(report, main_event_url, related_urls))
         else:
-            loop.run_until_complete(_publish_report_async(report))
+            loop.run_until_complete(_publish_report_async(report, main_event_url, related_urls))
     except RuntimeError:
         # Если нет event loop, создаем новый
-        asyncio.run(_publish_report_async(report))
+        asyncio.run(_publish_report_async(report, main_event_url, related_urls))

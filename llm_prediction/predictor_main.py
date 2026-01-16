@@ -15,6 +15,7 @@ import logger
 import os
 import json
 from datetime import datetime, timedelta
+from typing import List, Dict, Optional, Literal
 
 log = logger.get_logger(__name__)
 
@@ -102,6 +103,13 @@ def event_process_chain(
                     },
                     "prices": get_prices_intervals(history_event)
                 })
+    
+    # еще одно получение исторических данных - теперь берем топ 5 самых важных и новых новостей
+    high_impact_history_events = []
+    for ticker_i in new_event.tickers[:3]:
+        search_res = chroma_db.get_news_by_ticker(ticker=ticker_i, limit=5, min_impact='high')
+        if search_res:
+            high_impact_history_events.extend(search_res)
 
     # получение фундаментальных параметров для оценки актива
     fundamental_metrics = {}
@@ -114,10 +122,27 @@ def event_process_chain(
     llm_report = ai_enrichers_and_filters.generate_report(
         new_event,
         similar_events_and_prices,
-        fundamental_metrics
+        fundamental_metrics,
+        high_impact_history_events
     )
 
-    publish_report(llm_report)
+    # Подготавливаем список URL для отправки
+    main_event_url = new_event.url
+    related_urls = []
+    
+    # Добавляем URL из similar_events_and_prices
+    if similar_events_and_prices:
+        for item in similar_events_and_prices:
+            if 'event_data' in item and 'url' in item['event_data']:
+                related_urls.append(item['event_data']['url'])
+    
+    # Добавляем URL из high_impact_history_events
+    if high_impact_history_events:
+        for event in high_impact_history_events:
+            if hasattr(event, 'url'):
+                related_urls.append(event.url)
+
+    publish_report(llm_report, main_event_url, related_urls)
 
     saving_pipeline.saving_pipeline(new_event)
 
@@ -130,8 +155,6 @@ def evaluate_new_events(tickers=['SBER', 'POSI'], time_gap_seconds=320000):
         event_process_chain(event, db)
     
 if __name__ == "__main__":
+    evaluate_new_events(["POSI", "ROSN", "YDEX"], 86400)
     evaluate_new_events(["SBER", "POSI", "ROSN", "YDEX"], 320000)
 
-
-    # print(json.dumps(get_fundamental_metrics("SBER"), indent=2, ensure_ascii=False))
-    # print(get_fundamental_metrics("LOL"))

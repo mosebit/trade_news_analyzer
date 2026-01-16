@@ -52,16 +52,6 @@ class NewsDatabase:
         self.IAM_TOKEN = os.getenv("YANDEX_IAM_TOKEN")
         self.FOLDER_ID = os.getenv("YANDEX_FOLDER_ID")
 
-    # def create_embedding(self, enriched_data: Dict):
-    #     """Создание эмбеддинга из обогащенных данных."""
-    #     text = (
-    #         f"news description: {enriched_data.get('clean_description', '')} "
-    #         f"sentiment: {enriched_data.get('sentiment', '')} "
-    #         f"impact: {enriched_data.get('level_of_potential_impact_on_price', '')} "
-    #         f"tickers: {', '.join(enriched_data.get('tickers_of_interest', []))}"
-    #     )
-    #     return self.model.encode(text)
-
     def get_embedding(self, text: str, text_type: str = "doc"):
         doc_uri = f"emb://{self.FOLDER_ID}/text-search-doc/latest"
         query_uri = f"emb://{self.FOLDER_ID}/text-search-query/latest"
@@ -84,11 +74,6 @@ class NewsDatabase:
         # return self.model.encode(text)
         return self.get_embedding(text)
 
-    # def check_and_save(self, url: str, title: str, original_text: str,
-    #               enriched_data: Dict, published_date: str,
-    #               published_timestamp: int, other_urls: list = []) -> Optional[str]:
-    #     similar_news
-        
     def save_news_new(self, event: PreparedEvent, price_changes: Optional[Dict] = None) -> Optional[str]:
         """Сохранение новости в базу данных."""
         try:
@@ -100,12 +85,6 @@ class NewsDatabase:
 
             # Создание эмбеддинга
             embedding = self.create_embedding_from_text(event.clean_description)
-            # embedding = self.create_embedding({
-            #     'clean_description': event.clean_description,
-            #     'sentiment': event.sentiment,
-            #     'level_of_potential_impact_on_price': event.impact,
-            #     'tickers_of_interest': event.tickers
-            # })
 
             # Подготовка данных
             tickers = event.tickers
@@ -173,40 +152,6 @@ class NewsDatabase:
             news_dict['price_changes'] = json.loads(metadata.get('price_changes'))
 
         return news_dict
-        
-    # def find_similar_news_by_event_new(self, event: PreparedEvent, limit: int = 5, days_back: Optional[int] = None, threshold: Optional[float] = 0.10) -> List[Dict]:
-    #     """Finds similar news based on a PreparedEvent object."""
-    #     query_embedding = self.create_embedding_from_text(event.clean_description)
-    #     # query_embedding = self.create_embedding({
-    #     #     'clean_description': event.clean_description,
-    #     #     'sentiment': event.sentiment,
-    #     #     'level_of_potential_impact_on_price': event.impact,
-    #     #     'tickers_of_interest': event.tickers
-    #     # })
-
-    #     # Поиск
-    #     results = self.collection.query(
-    #         query_embeddings=query_embedding,  # ChromaDB ожидает list of lists
-    #         n_results=limit,
-    #         # where=where,
-    #         include=['metadatas', 'documents', 'distances']
-    #     )
-    #     similar = []
-    #     # results['ids'][0] - список ID, results['metadatas'][0] - список метаданных
-    #     for i, result_url in enumerate(results['ids'][0]):
-    #         metadata = results['metadatas'][0][i]
-    #         if results['distances'][0][i] <= threshold:
-    #             similar.append({
-    #                 'url': result_url,
-    #                 'title': metadata.get('title', ''),
-    #                 'clean_description': results['documents'][0][i],
-    #                 'sentiment': metadata.get('sentiment', ''),
-    #                 'published_datetime': metadata.get('published_datetime', ''),
-    #                 'date_timestamp': metadata.get('timestamp', ''),
-    #                 'distance': results['distances'][0][i]
-    #             })
-    #     print(f"Found {len(similar)} similar news.")
-    #     return similar
 
     def find_similar_news_by_event_new(self, event: PreparedEvent, limit: int = 5, days_back: Optional[int] = None, threshold: Optional[float] = 0.10) -> List[PreparedEvent]:
         """Finds similar news based on a PreparedEvent object and returns PreparedEvent objects."""
@@ -284,7 +229,7 @@ class NewsDatabase:
         return similar[:limit]
 
     def get_news_by_ticker(self, ticker: str, limit: int = 100,
-                          min_impact: Optional[str] = None) -> List[Dict]:
+                          min_impact: Optional[str] = None) -> List[PreparedEvent]:
         """
         Получение новостей по тикеру.
 
@@ -295,7 +240,7 @@ class NewsDatabase:
                        если None - возвращает все новости по тикеру
 
         Returns:
-            список словарей с данными новостей
+            список List[PreparedEvent] с данными новостей
         """
         # НОВЫЙ ПОДХОД: ищем по полю TICKER_impact
         ticker_field = f"{ticker}_impact"
@@ -322,15 +267,17 @@ class NewsDatabase:
         news_list = []
         for i, url in enumerate(results['ids']):
             metadata = results['metadatas'][i]
-            news_list.append({
-                'url': url,
-                'title': metadata.get('title', ''),
-                'clean_description': results['documents'][i],
-                'sentiment': metadata.get('sentiment', ''),
-                'impact_level': metadata.get('impact', ''),
-                'published_date': metadata.get('published_date', ''),
-                'tickers': metadata.get('tickers', '').split(',') if metadata.get('tickers') else []
-            })
+            news_list.append(PreparedEvent(
+                url=url,
+                title=metadata.get('title', ''),
+                clean_description=results['documents'][i],
+                original_text=metadata.get('original_text', ''),
+                tickers=metadata.get('tickers', '').split(',') if metadata.get('tickers') else [],
+                sentiment=metadata.get('sentiment', 'neutral'),
+                impact=metadata.get('impact', 'none'),
+                published_date=metadata.get('published_date', ''),
+                timestamp=metadata.get('timestamp', 0)
+            ))
 
         return news_list
 
@@ -444,10 +391,10 @@ if __name__ == "__main__":
     if stats['total_news'] > 0:
 
         print("\n--- Пример новостей по SBER ---")
-        sber_all = db.get_news_by_ticker('SBER', limit=100)
+        sber_all = db.get_news_by_ticker('SBER', limit=10, min_impact='medium')
         print(f"Найдено: {len(sber_all)}")
         for i, sber_event in enumerate(sber_all):
-            print(f"{i}.\t{sber_event.get('published_date')}")
+            print(f"{i}.\t{sber_event.url}")
 
         # print("\n--- Важные новости по SBER (high impact) ---")
         # sber_high = db.get_news_by_ticker('SBER', limit=5, min_impact='high')
