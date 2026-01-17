@@ -1,8 +1,4 @@
 """В этом модуле реализована логика обработки новостей, появляющихся в реальном времени"""
-# import sys
-# from pathlib import Path
-# project_root = Path(__file__).resolve().parent.parent
-# sys.path.insert(0, str(project_root))
 
 from historical_data_preparation import news_database_chroma
 from historical_data_preparation import saving_pipeline
@@ -40,7 +36,7 @@ def get_fundamental_metrics(ticker: str, info_file_path=None):
     # Поиск компании по тикеру (case-insensitive)
     ticker_upper = ticker.upper()
     for company_data in companies_data:
-        if company_data.get('company', {}).get('ticker', '').upper() == ticker_upper:
+        if company_data.get('ticker', {}).upper() == ticker_upper:
             return company_data
 
     # Если не найдено
@@ -155,6 +151,6 @@ def evaluate_new_events(tickers=['SBER', 'POSI'], time_gap_seconds=320000):
         event_process_chain(event, db)
     
 if __name__ == "__main__":
-    evaluate_new_events(["POSI", "ROSN", "YDEX"], 86400)
-    evaluate_new_events(["SBER", "POSI", "ROSN", "YDEX"], 320000)
+    # evaluate_new_events(["POSI", "ROSN", "YDEX"], 86400)
+    evaluate_new_events(["SBER", "POSI", "ROSN", "YDEX"], 160000)
 

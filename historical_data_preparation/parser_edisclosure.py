@@ -12,8 +12,8 @@ from . import ai_enrichers_and_filters
 from . import future_price_moex
 from . import saving_pipeline
 
-# TODO - tickers_descriptions перенести в JSON
-from .parser_smart_lab import tickers_descriptions
+# # TODO - tickers_descriptions перенести в JSON
+# from .parser_smart_lab import tickers_descriptions
 
 import logger
 
@@ -88,10 +88,7 @@ def analyze_company_news_until_timestamp(ticker, date_obj_until: datetime):
 
                     # отправка в LLM для обогащения
                     log.info(f"Обогащение новости при помощи LLM, title обрабатываемой: '{event_parsed_data.get('title')}'")
-                    enriched_event = ai_enrichers_and_filters.enrich_news_data(
-                        event_parsed_data['text'],
-                        tickers_descriptions
-                        )
+                    enriched_event = ai_enrichers_and_filters.enrich_news_data(event_parsed_data['text'])
 
                     prepared_for_saving = news_database_chroma.PreparedEvent(
                         url=event_url,

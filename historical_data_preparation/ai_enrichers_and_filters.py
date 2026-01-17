@@ -5,8 +5,9 @@ import json
 import requests
 import os
 import re
-from .news_database_chroma import PreparedEvent
+
 import logger
+from .news_database_chroma import PreparedEvent
 
 log = logger.get_logger(__name__)
 
@@ -300,7 +301,23 @@ class EnrichedEventData(BaseModel):
         description="Потенциальное влияние новости на цену актива"
     )
 
-def enrich_news_data(event_description: str, tickers_data: dict):
+# TODO - вынести в отдельный артефакт
+TICKERS_DESCRIPTIONS = {
+    "POSI": {
+        "description": "Positive Technologies (тикер POSI на Московской бирже MOEX) — российский разработчик решений в сфере кибербезопасности для корпоративных и государственных клиентов, работающий в секторе программного обеспечения и ИБ‑сервисов, с выручкой порядка 24–25 млрд руб. в 2024 году и включением акций в первый котировальный список и ключевые ИТ‑индексы Мосбиржи. Для инвестора это история роста в нише кибербезопасности с высокой долей выручки от лицензий, заметной волатильностью прибыли (сокращение чистой прибыли по МСФО в 2024 году примерно до 3,7 млрд руб.) и активной работой с розничными акционерами, в том числе через SPO и программы обратного выкупа."
+    },
+    "SBER": {
+        "description": "Сбербанк  (тикер SBER на Московской бирже) — крупнейший универсальный банк России и Восточной Европы, работающий в финансовом секторе (банковские услуги, финтех, экосистемные цифровые сервисы) с прибылью по МСФО около 1,58 трлн руб. за 2024 год и рентабельностью капитала около 24–25%. Для инвестора это высокомаржинальный лидер рынка с масштабным дивидендным потенциалом и ликвидностью «голубой фишки», чувствительный к ставке ЦБ, состоянию российской экономики и регуляторным/геополитическим рискам."
+    },
+    "ROSN": {
+        "description": "Роснефть  (тикер ROSN на Московской бирже) — крупнейшая российская публичная нефтегазовая компания с вертикально интегрированным бизнесом по добыче нефти и газа, переработке и розничным продажам нефтепродуктов и существенной долей в экспорте углеводородов. Для инвестора это системообразующий эмитент сырьевого сектора с триллионной выручкой в год, высокой капиталоемкостью, чувствительностью к ценам на нефть, курсу рубля, ставке ЦБ и санкционным/регуляторным рискам, но традиционно значимым дивидендным потоком и ролью в индексах российского рынка."
+    },
+    "YDEX": {
+        "description": "Яндекс (тикер YDEX на Московской бирже) — крупнейшая российская ИТ‑компания, работающая в секторе интернет‑сервисов и цифровых экосистем (поиск и реклама, такси, e‑commerce, медиа и облака) с быстро растущей выручкой и высокой маржинальностью по EBITDA на фоне умеренной долговой нагрузки. Для инвестора это классическая история роста с регулярными полугодовыми дивидендами (ориентир на существенную долю от прибыли) и чувствительностью к динамике российского потребительского спроса, регуляторной политике в сфере ИТ и конкуренции на рынке онлайн‑рекламы и сервисов"
+    }
+}
+
+def enrich_news_data(event_description: str, tickers_data: dict = TICKERS_DESCRIPTIONS):
     """
     Обогащает данные о новости с помощью LLM анализа.
 
@@ -626,13 +643,13 @@ class ReportData(BaseModel):
     event_summary: str = Field(
         description="Краткое описание события и его ключевых моментов"
     )
-    similar_events: List[dict] = Field(
+    tickers_of_interest: List[Literal["SBER", "POSI", "ROSN", "YDEX"]] = Field(
         default_factory=list,
-        description="Список похожих событий с их описаниями и временем"
+        description="Список тикеров, к которым относится новость"
     )
-    high_impact_history_events: List[dict] = Field(
+    used_in_research_historical_events: List[dict] = Field(
         default_factory=list,
-        description="Список высоковажных исторических событий, связанных с анализируемым событием"
+        description="Список исторических событий, которые помогли сформировать вердикт по анализу основного события"
     )
     key_factors: List[str] = Field(
         default_factory=list,
@@ -650,7 +667,8 @@ def generate_report(
     analyzed_event: PreparedEvent,
     similar_events_and_prices: Optional[List[dict]] = None,
     fundamental_metrics: Optional[dict] = None,
-    high_impact_history_events: Optional[List[PreparedEvent]] = None
+    high_impact_history_events: Optional[List[PreparedEvent]] = None,
+    tickers_data: dict = TICKERS_DESCRIPTIONS
 ) -> Optional[dict]:
     """
     Генерирует структурированный отчет по событию и сопутствующим данным.
@@ -667,6 +685,13 @@ def generate_report(
     context_parts = []
     context_parts.append(f"ОСНОВНОЕ СОБЫТИЕ:\n{analyzed_event.clean_description}")
 
+    if tickers_data:
+        tickers_context = "\n".join([
+            f"- {ticker}: {data.get('description', 'N/A')}"
+            for ticker, data in tickers_data.items()
+        ])
+        context_parts.append(f"ДАННЫЕ ПО АНАЛИЗИРУЕМЫМ АКТИВАМ (на их основе нужно определять на какие активы влияет новость):\n{tickers_context}")
+
     if similar_events_and_prices and len(similar_events_and_prices) > 0:
         similar_context = "\n".join([
             f"Событие {i+1}: {event['event_data']['title']} ({event['event_data']['timestamp']})\n"
@@ -678,55 +703,52 @@ def generate_report(
 
     if high_impact_history_events and len(high_impact_history_events) > 0:
         high_impact_context = "\n".join([
-            f"Высоковажное событие {i+1}: {event.title} ({event.timestamp})\n"
+            f"Важное событие {i+1}: {event.title} ({event.timestamp})\n"
             f"Описание: {event.clean_description}\n"
             f"Тикеры: {', '.join(event.tickers)}"
             for i, event in enumerate(high_impact_history_events[:3])
         ])
-        context_parts.append(f"ВЫСОКОВАЖНЫЕ ИСТОРИЧЕСКИЕ СОБЫТИЯ:\n{high_impact_context}")
+        context_parts.append(f"ВАЖНЫЕ ИСТОРИЧЕСКИЕ СОБЫТИЯ (ПО СВЯЗАННЫМ ТИКЕРАМ, КОМПАНИЯМ, АКТИВАМ):\n{high_impact_context}")
 
     if fundamental_metrics:
-        metrics_context = "\n".join([
-            f"{ticker}: {metrics.get('company', {}).get('name', 'N/A')} - P/E: {metrics.get('financial_ratios', {}).get('pe_ratio', 'N/A')} "
-            f"EV/EBITDA: {metrics.get('financial_ratios', {}).get('ev_ebitda', 'N/A')}"
-            for ticker, metrics in fundamental_metrics.items()
-        ])
-        context_parts.append(f"ФУНДАМЕНТАЛЬНЫЕ МЕТРИКИ:\n{metrics_context}")
+        # metrics_context = "\n".join([
+        #     f"{ticker}: {metrics.get('company', {}).get('name', 'N/A')} - P/E: {metrics.get('financial_ratios', {}).get('pe_ratio', 'N/A')} "
+        #     f"EV/EBITDA: {metrics.get('financial_ratios', {}).get('ev_ebitda', 'N/A')}"
+        #     for ticker, metrics in fundamental_metrics.items()
+        # ])
+        context_parts.append(f"ФУНДАМЕНТАЛЬНЫЕ МЕТРИКИ:\n{fundamental_metrics}")
 
     full_context = "\n\n".join(context_parts)
 
     prompt = f"""Проанализируй следующие данные и создай структурированный отчет по событию.
 
-КОНТЕКСТ СОБЫТИЯ:
+## КОНТЕКСТ
 {full_context}
 
-ЗАДАЧИ:
+## ЗАДАЧИ:
 1. Определи прогноз изменения цены актива (price_change_prediction): up (рост), down (падение), или stable (стабильность)
 2. Создай краткое описание события и его ключевых моментов (event_summary)
-3. Если были предоставлены похожие события, укажи их в списке similar_events с описаниями
-4. Если были предоставлены высоковажные исторические события, укажи их в списке high_impact_history_events с описаниями
+3. Определи список связанных с событием тикеров (тикер - уникальное краткое обозначение финансового инструмента на бирже)
+4. Если для твоего анализа оказалось полезной какая-то новость из дополнительного контекста - укажи ее в used_in_research_historical_events
 5. Выдели ключевые факторы, повлиявшие на прогноз (key_factors)
 6. Определи уровень уверенности в прогнозе (confidence_level): low (низкий), medium (средний), high (высокий)
 7. Предложи рекомендуемое торговое действие (recommended_action): buy (покупать), sell (продавать), hold (удерживать), monitor (мониторить)
+
+
+## ТРЕБОВАНИЯ
 
 ВАЖНО: Верни ТОЛЬКО валидный JSON объект без markdown разметки, без пояснений.
 
 Структура JSON:
 {{
   "price_change_prediction": "up/down/stable",
-  "event_summary": "краткое описание события",
-  "similar_events": [
+  "event_summary": "Краткое описание события и его ключевых моментов",
+  "tickers_of_interest": ["SBER", "POSI", "ROSN", "YDEX"],
+  "used_in_research_historical_events": [
     {{
-      "timestamp": "время события",
-      "description": "описание события",
-      "tickers": ["тикеры"]
-    }}
-  ],
-  "high_impact_history_events": [
-    {{
-      "timestamp": "время события",
-      "description": "описание события",
-      "tickers": ["тикеры"]
+      "timestamp": "время события из контекста",
+      "description": "описание события из контекста",
+      "relevance": "почему это событие помогло в анализе"
     }}
   ],
   "key_factors": ["фактор 1", "фактор 2"],
@@ -735,9 +757,9 @@ def generate_report(
 }}
 
 ПРИМЕЧАНИЕ:
-- Если похожих событий нет, оставь пустой массив similar_events
-- Если высоковажных исторических событий нет, оставь пустой массив high_impact_history_events
-- Все поля обязательны
+- Поле tickers_of_interest может содержать ТОЛЬКО тикеры из списка: "SBER", "POSI", "ROSN", "YDEX". Если новость не касается ни одного из них, оставь список пустым.
+- В поле used_in_research_historical_events добавляй словари (dict) с данными о событиях из предоставленного контекста (Похожие события или Важные исторические события), которые действительно повлияли на твой вердикт. Если таких нет — оставь пустой список.
+- Все поля обязательны.
 """
 
     try:
@@ -770,23 +792,23 @@ def generate_report(
         result = ReportData.model_validate_json(cleaned_json)
         report_dict = result.model_dump()
 
-        # Добавить URL и timestamp к похожим событиям
-        if similar_events_and_prices and len(similar_events_and_prices) > 0:
-            enhanced_similar = []
-            for event_data in similar_events_and_prices[:5]:  # Top 5
-                event_info = event_data.get('event_data', {})
-                from datetime import datetime
-                timestamp_str = datetime.fromtimestamp(event_info.get('timestamp', 0)).strftime('%Y-%m-%d %H:%M')
+        # # Добавить URL и timestamp к похожим событиям
+        # if similar_events_and_prices and len(similar_events_and_prices) > 0:
+        #     enhanced_similar = []
+        #     for event_data in similar_events_and_prices[:5]:  # Top 5
+        #         event_info = event_data.get('event_data', {})
+        #         from datetime import datetime
+        #         timestamp_str = datetime.fromtimestamp(event_info.get('timestamp', 0)).strftime('%Y-%m-%d %H:%M')
 
-                enhanced_similar.append({
-                    'title': event_info.get('title', 'N/A'),
-                    'description': event_info.get('clean_description', '')[:150] + '...',
-                    'url': event_info.get('url', ''),
-                    'timestamp': timestamp_str,
-                    'tickers': event_info.get('tickers', [])
-                })
+        #         enhanced_similar.append({
+        #             'title': event_info.get('title', 'N/A'),
+        #             'description': event_info.get('clean_description', '')[:150] + '...',
+        #             'url': event_info.get('url', ''),
+        #             'timestamp': timestamp_str,
+        #             'tickers': event_info.get('tickers', [])
+        #         })
 
-            report_dict['similar_events'] = enhanced_similar
+        #     report_dict['similar_events'] = enhanced_similar
 
         return report_dict
 
