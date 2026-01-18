@@ -106,6 +106,8 @@ def analyze_page_with_url(url: str):
     enriched_event = ai_enrichers_and_filters.enrich_news_data(data_from_post['text'])
     
     if not enriched_event:
+        # TODO - добавить logger
+        saving_pipeline.save_problematic_event(url, 'Error in AI enriching')
         return None
     
     prepared_for_saving = news_database_chroma.PreparedEvent(
@@ -134,8 +136,6 @@ def analyze_page_of_news_NEW(ticker: str, page_index: int, db_client: news_datab
         prepared_for_saving = analyze_page_with_url(link)
 
         if not prepared_for_saving:
-            with open('problematic_urls', 'a') as f:
-                f.write(link + '\n')
             continue
 
         if prepared_for_saving.timestamp < smallest_date_int:

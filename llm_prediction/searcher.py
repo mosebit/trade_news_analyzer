@@ -2,13 +2,9 @@
 Данный модуль отвечает за поиск свежих непроанализированных новостей.
 """
 
-# import sys
-# from pathlib import Path
-# project_root = Path(__file__).resolve().parent.parent
-# sys.path.insert(0, str(project_root))
-
 from historical_data_preparation import parser_smart_lab
 from historical_data_preparation import news_database_chroma
+from historical_data_preparation import saving_pipeline
 import logger
 
 import time
@@ -34,6 +30,10 @@ def process_new_urls_smartlab(ticker, gap_length_sec=86400):
 
     prepared_news = []
     for url in unsaved_urls:
+        # проверка является ли новость проблематичной
+        if saving_pipeline.is_url_problematic(url):
+            continue
+
         prepared_for_saving = parser_smart_lab.analyze_page_with_url(url)
         prepared_news.append(prepared_for_saving)
         print(f"Обработана новость для последующего анализа: '{url}'")

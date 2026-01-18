@@ -22,6 +22,7 @@ services:
     restart: unless-stopped
     volumes:
       - ./chroma_db_new:/app/chroma_db_new
+      - ./problematic_urls.csv:/app/problematic_urls.csv
       - ./logs:/app/logs
     environment:
       - PYTHONPATH=/app

@@ -22,6 +22,7 @@ COPY . .
 
 # Create directories for database storage
 RUN mkdir -p /app/chroma_db_new
+RUN touch /app/problematic_urls.csv
 
 # Default command - can be overridden
 CMD ["python", "llm_prediction/predictor_main.py"]

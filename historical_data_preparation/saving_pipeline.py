@@ -8,11 +8,38 @@
 Если в базе информация об этой новости уже сохранена, то нужно проверить какая из новостей (сохраненная или
 анализируемая в данный момент) имеет более раннюю дату публикации, в базе должна остаться самая ранняя новость.
 """
+import csv
+from pathlib import Path
 
 from . import ai_enrichers_and_filters
 from . import news_database_chroma
 from . import future_price_moex
 
+PROBLEMATIC_URLS = './problematic_urls.csv'
+
+def save_problematic_event(url: str, reason: str):
+    file_exists = Path(PROBLEMATIC_URLS).exists()
+    
+    with open(PROBLEMATIC_URLS, 'a', newline='', encoding='utf-8') as f:
+        fieldnames = ['url', 'reason']
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        
+        if not file_exists:
+            writer.writeheader()
+        
+        writer.writerow({'url': url, 'reason': reason})
+
+def is_url_problematic(url: str) -> bool:
+    if not Path(PROBLEMATIC_URLS).exists():
+        return False
+    
+    with open(PROBLEMATIC_URLS, 'r', newline='', encoding='utf-8') as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            if row['url'] == url:
+                return True
+    
+    return False
 
 def find_duplicates(
         new_event: news_database_chroma.PreparedEvent,
