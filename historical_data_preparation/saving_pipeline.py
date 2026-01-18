@@ -89,6 +89,7 @@ def saving_pipeline(
             db.delete_news(similar_in_db.url)
         else:
             # новость с более ранней датой уже в БД
+            save_problematic_event(new_event.url, 'Duplicate of another event saved in DB')
             return None
 
     # price_changes = future_price_moex.get_future_price_changes(
